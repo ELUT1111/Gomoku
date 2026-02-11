@@ -10,15 +10,26 @@ CONFIG += c++17
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    offlinechoicewidget.cpp \
+    pagemanager.cpp \
+    startwidget.cpp
 
 HEADERS += \
-    mainwindow.h
+    mainwindow.h \
+    offlinechoicewidget.h \
+    pagemanager.h \
+    startwidget.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    offlinechoicewidget.ui \
+    startwidget.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+RESOURCES += \
+    res.qrc
