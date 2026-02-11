@@ -1,0 +1,128 @@
+# 通用新增规则：忽略所有.git文件夹和.gitignore文件
+
+# ==================== 后端 SpringBoot 相关忽略规则 ====================
+# 后端基础忽略
+HELP.md
+service/gomokuService/.git
+service/gomokuService/.gitignore
+service/gomokuService/target/
+service/gomokuService/.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# STS 相关
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# IntelliJ IDEA 相关
+.idea
+*.iws
+*.iml
+*.ipr
+
+# NetBeans 相关
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+service/gomokuService/build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# VS Code 相关
+.vscode/
+
+# ==================== 前端 QT 相关忽略规则 ====================
+/client/gomokuClient/.git
+/client/gomokuClient/.gitignore
+# QT 生成文件基础忽略
+*~
+*.autosave
+*.a
+*.core
+*.moc
+*.o
+*.obj
+*.orig
+*.rej
+*.so
+*.so.*
+*_pch.h.cpp
+*_resource.rc
+*.qm
+.#*
+*.*#
+core
+!core/
+tags
+.DS_Store
+.directory
+*.debug
+Makefile*
+*.prl
+*.app
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+Thumbs.db
+*.res
+*.rc
+/client/gomokuClient/.qmake.cache
+/client/gomokuClient/.qmake.stash
+
+# QT Creator 生成文件
+*.pro.user*
+*.qbs.user*
+CMakeLists.txt.user*
+
+# 编辑器临时文件
+# xemacs
+*.flc
+# Vim
+.*.swp
+
+# Visual Studio 生成文件
+*.ib_pdb_index
+*.idb
+*.ilk
+*.pdb
+*.sln
+*.suo
+*.vcproj
+*vcproj.*.*.user
+*.ncb
+*.sdf
+*.opensdf
+*.vcxproj
+*vcxproj.*
+
+# MinGW 生成文件
+*.Debug
+*.Release
+
+# Python 字节码
+*.pyc
+
+# 二进制文件
+*.dll
+*.exe
+
+# QT 生成文件目录
+.moc/
+.obj/
+.pch/
+.rcc/
+.uic/
+/build*/
+/client/gomokuClient/.moc/
+/client/gomokuClient/.obj/
+/client/gomokuClient/.pch/
+/client/gomokuClient/.rcc/
+/client/gomokuClient/.uic/
+/client/gomokuClient/build*/
