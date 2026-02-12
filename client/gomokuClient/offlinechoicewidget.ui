@@ -40,6 +40,24 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <item>
+          <widget class="QPushButton" name="freeButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>15</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>自由练习</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QPushButton" name="easyButton">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
@@ -53,7 +71,7 @@
             </font>
            </property>
            <property name="text">
-            <string>简单</string>
+            <string>简单人机</string>
            </property>
           </widget>
          </item>
@@ -71,7 +89,7 @@
             </font>
            </property>
            <property name="text">
-            <string>普通</string>
+            <string>普通人机</string>
            </property>
           </widget>
          </item>
@@ -89,7 +107,7 @@
             </font>
            </property>
            <property name="text">
-            <string>困难</string>
+            <string>困难人机</string>
            </property>
           </widget>
          </item>

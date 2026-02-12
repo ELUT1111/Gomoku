@@ -18,6 +18,8 @@ public:
 private slots:
     void on_returnButton_clicked();
 
+    void on_freeButton_clicked();
+
 private:
     Ui::OfflineChoiceWidget *ui;
 };

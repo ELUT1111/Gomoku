@@ -26,13 +26,19 @@ public:
 
     void initPage();
     inline void changePage(int index);
-
+signals:
+    void signal_undo();
+    void signal_reset();
 private:
     Ui::MainWindow *ui;
 
 public slots:
     void slot_switchToPage(int index);
 
+private slots:
+    void on_undoButton_clicked();
+    void on_resetButton_clicked();
+    void on_backButton_clicked();
 };
 
 #endif // MAINWINDOW_H

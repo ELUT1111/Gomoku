@@ -9,6 +9,7 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    gamewidget.cpp \
     main.cpp \
     mainwindow.cpp \
     offlinechoicewidget.cpp \
@@ -16,12 +17,14 @@ SOURCES += \
     startwidget.cpp
 
 HEADERS += \
+    gamewidget.h \
     mainwindow.h \
     offlinechoicewidget.h \
     pagemanager.h \
     startwidget.h
 
 FORMS += \
+    gamewidget.ui \
     mainwindow.ui \
     offlinechoicewidget.ui \
     startwidget.ui
@@ -33,3 +36,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 RESOURCES += \
     res.qrc
+
+DISTFILES += \
+    res/picture/black_chess.png \
+    res/picture/game_background.bmp \
+    res/picture/white_chess.png

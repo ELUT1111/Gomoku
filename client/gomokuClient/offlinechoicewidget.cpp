@@ -19,3 +19,9 @@ void OfflineChoiceWidget::on_returnButton_clicked()
     PageManager::instance()->switchToPage(0);
 }
 
+
+void OfflineChoiceWidget::on_freeButton_clicked()
+{
+    PageManager::instance()->switchToPage(4);
+}
+
