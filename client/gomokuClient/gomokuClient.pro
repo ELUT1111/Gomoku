@@ -9,7 +9,12 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    abstractplayer.cpp \
+    aiplayer.cpp \
+    boarddata.cpp \
+    gamesession.cpp \
     gamewidget.cpp \
+    humanplayer.cpp \
     main.cpp \
     mainwindow.cpp \
     offlinechoicewidget.cpp \
@@ -17,7 +22,13 @@ SOURCES += \
     startwidget.cpp
 
 HEADERS += \
+    EnumType.h \
+    abstractplayer.h \
+    aiplayer.h \
+    boarddata.h \
+    gamesession.h \
     gamewidget.h \
+    humanplayer.h \
     mainwindow.h \
     offlinechoicewidget.h \
     pagemanager.h \

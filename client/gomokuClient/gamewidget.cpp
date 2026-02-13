@@ -8,11 +8,30 @@
 GameWidget::GameWidget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::GameWidget)
+    , session(nullptr)
 {
     ui->setupUi(this);
 
     initBoard();
 
+    initUI();
+
+    initConnect();
+
+}
+
+GameWidget::~GameWidget()
+{
+    delete ui;
+}
+
+void GameWidget::initBoard()
+{
+    boardData = GameSession::instance()->getBoardData();
+}
+
+void GameWidget::initUI()
+{
     this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding); // 随父容器扩展
     this->setContentsMargins(0, 0, 0, 0); // 移除自身边距
 
@@ -36,32 +55,24 @@ GameWidget::GameWidget(QWidget *parent)
 
     // 设置场景大小
     scene->setSceneRect(boardItem->boundingRect());
-
 }
 
-GameWidget::~GameWidget()
+void GameWidget::initConnect()
 {
-    delete ui;
+    connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+    connect(GameSession::instance(),&GameSession::signal_drawChess,this,&GameWidget::slot_drawChess);
+    connect(GameSession::instance(),&GameSession::signal_switchTurn,this,&GameWidget::slot_switchTurn);
 }
 
-void GameWidget::initBoard()
+void GameWidget::drawChess(int x, int y, ChessType chessType)
 {
-    for(int i=0;i<15;i++)
-    {
-        for(int j=0;j<15;j++)
-        {
-            board[i][j] = 0;
-        }
-    }
-}
+    if(boardData->getChess(x,y) != ChessType::EMPTY) return;
+    //boardData->setChess(x,y,chessType);
 
-void GameWidget::placeChess(int x, int y, int color)
-{
-    if(board[x][y] != 0) return;
-    board[x][y] = color;
+    // TODO
 
     // 加载棋子图片
-    QPixmap chess_pix = (color == 1) ? QPixmap(PATH_blackChess) : QPixmap(PATH_whiteChess);
+    QPixmap chess_pix = (chessType == ChessType::BLACK) ? QPixmap(PATH_blackChess) : QPixmap(PATH_whiteChess);
     QGraphicsPixmapItem *chess_item = new QGraphicsPixmapItem(chess_pix);
     scene->addItem(chess_item);
 
@@ -75,8 +86,8 @@ void GameWidget::placeChess(int x, int y, int color)
     qreal grid_h = board_h * (1 - 2 * BORDER_RATIO);
 
     // 计算第(x,y)个网格交点的场景坐标
-    qreal grid_step_x = grid_w / (GRID_COUNT - 1); // 每个网格的宽度
-    qreal grid_step_y = grid_h / (GRID_COUNT - 1); // 每个网格的高度
+    qreal grid_step_x = grid_w / (BOARD_SIZE - 1); // 每个网格的宽度
+    qreal grid_step_y = grid_h / (BOARD_SIZE - 1); // 每个网格的高度
     qreal chess_scene_x = grid_left + x * grid_step_x;
     qreal chess_scene_y = grid_top + y * grid_step_y;
 
@@ -89,7 +100,7 @@ void GameWidget::placeChess(int x, int y, int color)
     chessItems.append(chess_item);
 }
 
-void GameWidget::undo()
+void GameWidget::undoForUI()
 {
     /*悔棋*/
     if(chessItems.isEmpty()) return;
@@ -97,16 +108,16 @@ void GameWidget::undo()
     scene->removeItem(last);
     delete last;
     last = nullptr;
-    QPoint lastGird = chessPoints.takeLast();
-    board[lastGird.x()][lastGird.y()] = 0;
+    //QPoint lastGird = chessPoints.takeLast();
+    //board[lastGird.x()][lastGird.y()] = 0;
     std::swap(currentColor,nextColor);
 }
 
-void GameWidget::clearBoard()
+void GameWidget::clearBoardForUI()
 {
     currentColor = 1;
     nextColor = 2;
-    initBoard();
+    //initBoard();
     for(auto chess:chessItems)
     {
         scene->removeItem(chess);
@@ -114,40 +125,6 @@ void GameWidget::clearBoard()
     }
     chessItems.clear();
     chessPoints.clear();
-}
-
-int GameWidget::numInRow(int x, int y, int color, int dir)
-{
-    if(board[x][y] !=color) return 0;
-    int num = 0;
-    int x1=x,y1=y;
-    while(checkPoint(x,y)&&board[x][y] == color)
-    {
-        num++;
-        x+=dirs[dir][0];
-        y+=dirs[dir][1];
-    }
-    x=x1 - dirs[dir][0];
-    y=y1 - dirs[dir][1];
-    while(checkPoint(x,y)&&board[x][y] == color)
-    {
-        num++;
-        x -= dirs[dir][0];
-        y -= dirs[dir][1];
-    }
-    return num;
-}
-
-bool GameWidget::checkWin(int x, int y, int color)
-{
-    for(int i=1;i<4;i++)
-    {
-        if(numInRow(x,y,color,i)>=5)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 bool GameWidget::checkPoint(int x, int y)
@@ -180,12 +157,12 @@ QPoint GameWidget::posToGrid(const QPoint &pos)
     relative_y = qBound(0.0, relative_y, grid_h);
 
     // 映射到15×15网格交点（0~14）
-    int x = qRound(relative_x / grid_w * (GRID_COUNT - 1));
-    int y = qRound(relative_y / grid_h * (GRID_COUNT - 1));
+    int x = qRound(relative_x / grid_w * (BOARD_SIZE - 1));
+    int y = qRound(relative_y / grid_h * (BOARD_SIZE - 1));
 
     // 最终确保x/y在0~14范围内
-    x = qBound(0, x, GRID_COUNT - 1);
-    y = qBound(0, y, GRID_COUNT - 1);
+    x = qBound(0, x, BOARD_SIZE - 1);
+    y = qBound(0, y, BOARD_SIZE - 1);
 
     return QPoint(x, y);
 }
@@ -210,17 +187,19 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
         QPoint grid = posToGrid(event->pos());
         int x = grid.x();
         int y = grid.y();
-        if(board[x][y] == 0) // 空位
+        if( boardData->getChess(x, y) == ChessType::EMPTY) // 空位
         {
-            placeChess(x, y, currentColor);
-            chessPoints.append(grid);
-            std::swap(currentColor,nextColor);
-            if(checkWin(x,y,nextColor))
-            {
-                QString winner = nextColor==1? "黑方":"白方";
-                QMessageBox::information(this,"游戏结束",winner+"获胜!");
-                clearBoard();
-            }
+            qDebug()<<grid;
+            emit signal_mouseClicked(x,y);
+            // placeChess(x, y, currentColor);
+            // chessPoints.append(grid);
+            // std::swap(currentColor,nextColor);
+            // if(checkWin(x,y,nextColor))
+            // {
+            //     QString winner = nextColor==1? "黑方":"白方";
+            //     QMessageBox::information(this,"游戏结束",winner+"获胜!");
+            //     clearBoard();
+            // }
         }
     }
 }
@@ -247,12 +226,34 @@ void GameWidget::updateViewScale()
     view->centerOn(boardItem);
 }
 
+GamemodeType GameWidget::getCurrentGamemode() const
+{
+    return currentGamemode;
+}
+
+void GameWidget::setCurrentGamemode(GamemodeType newCurrentGamemode)
+{
+    currentGamemode = newCurrentGamemode;
+}
+
 void GameWidget::slot_undo()
 {
-    undo();
+    undoForUI();
 }
 
 void GameWidget::slot_reset()
 {
-    clearBoard();
+    clearBoardForUI();
+}
+
+void GameWidget::slot_drawChess(int x, int y, ChessType chessType)
+{
+    drawChess(x,y,chessType);
+}
+
+void GameWidget::slot_switchTurn()
+{
+    //qDebug()<<"交换";
+    disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
+    connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
 }
