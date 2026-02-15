@@ -25,14 +25,20 @@ public:
     void setChess(int x, int y, ChessType chessType);
     // 清空棋盘
     void clear();
+    // 获取棋子数量
+    int getChessNumbers() const;
+    void setChessNumbers(int newChessNumbers);
+
 private:
     // 棋盘数组
     int board[BOARD_SIZE][BOARD_SIZE] = {0};
     // 多读单写锁
     mutable QReadWriteLock rwLock;
+
+    int chessNumbers;
 signals:
 };
 
-using BoardDataPtr = QSharedPointer<BoardData>;
+using BoardDataPtr = QSharedPointer<BoardData>; // 棋盘数据指针
 
 #endif // BOARDDATA_H

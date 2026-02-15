@@ -62,6 +62,10 @@ void GameWidget::initConnect()
     connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
     connect(GameSession::instance(),&GameSession::signal_drawChess,this,&GameWidget::slot_drawChess);
     connect(GameSession::instance(),&GameSession::signal_switchTurn,this,&GameWidget::slot_switchTurn);
+    connect(GameSession::instance(),&GameSession::signal_playerWin,this,&GameWidget::slot_playerWin);
+
+    connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame);
+    connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo);
 }
 
 void GameWidget::drawChess(int x, int y, ChessType chessType)
@@ -110,7 +114,7 @@ void GameWidget::undoForUI()
     last = nullptr;
     //QPoint lastGird = chessPoints.takeLast();
     //board[lastGird.x()][lastGird.y()] = 0;
-    std::swap(currentColor,nextColor);
+    //std::swap(currentColor,nextColor);
 }
 
 void GameWidget::clearBoardForUI()
@@ -191,15 +195,6 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
         {
             qDebug()<<grid;
             emit signal_mouseClicked(x,y);
-            // placeChess(x, y, currentColor);
-            // chessPoints.append(grid);
-            // std::swap(currentColor,nextColor);
-            // if(checkWin(x,y,nextColor))
-            // {
-            //     QString winner = nextColor==1? "黑方":"白方";
-            //     QMessageBox::information(this,"游戏结束",winner+"获胜!");
-            //     clearBoard();
-            // }
         }
     }
 }
@@ -238,11 +233,13 @@ void GameWidget::setCurrentGamemode(GamemodeType newCurrentGamemode)
 
 void GameWidget::slot_undo()
 {
+    emit signal_undoRequest();
     undoForUI();
 }
 
 void GameWidget::slot_reset()
 {
+    emit signal_resetBoard();
     clearBoardForUI();
 }
 
@@ -256,4 +253,12 @@ void GameWidget::slot_switchTurn()
     //qDebug()<<"交换";
     disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
     connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+}
+
+void GameWidget::slot_playerWin(AbstractPlayer *player)
+{
+
+    QString winner = (player == GameSession::instance()->player1) ? "黑方":"白方";
+    QMessageBox::information(this,"游戏结束",winner+"获胜!");
+    slot_reset();
 }

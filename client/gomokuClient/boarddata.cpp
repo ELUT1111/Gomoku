@@ -69,3 +69,15 @@ void BoardData::clear()
     QWriteLocker locker(&rwLock);
     memset(board, 0, sizeof(board));
 }
+
+int BoardData::getChessNumbers() const
+{
+    QReadLocker locker(&rwLock);
+    return chessNumbers;
+}
+
+void BoardData::setChessNumbers(int newChessNumbers)
+{
+    QWriteLocker locker(&rwLock);
+    chessNumbers = newChessNumbers;
+}

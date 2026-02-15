@@ -24,8 +24,9 @@ enum class AIType
 
 enum class GamemodeType
 {
-    OFFLINE =0,
-    ONLINE =1
+    OFFLINE_FREE = 0,
+    OFFLINE_AI = 1,
+    ONLINE = 2
 };
 
 Q_DECLARE_METATYPE(ChessType)

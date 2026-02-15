@@ -72,11 +72,14 @@ private:
     const QString PATH_board = ":/pic/res/picture/game_background.bmp";
 signals:
     void signal_mouseClicked(int x,int y);
+    void signal_resetBoard();
+    void signal_undoRequest();
 public slots:
     void slot_undo();
     void slot_reset();
     void slot_drawChess(int x,int y,ChessType chessType);
     void slot_switchTurn();
+    void slot_playerWin(AbstractPlayer* player);
 };
 
 #endif // GAMEWIDGET_H
