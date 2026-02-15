@@ -71,10 +71,12 @@ private:
     const QString PATH_whiteChess = ":/pic/res/picture/white_chess.png";
     const QString PATH_board = ":/pic/res/picture/game_background.bmp";
 signals:
+    void signal_changeGamemode(GamemodeType gamemode);
     void signal_mouseClicked(int x,int y);
     void signal_resetBoard();
     void signal_undoRequest();
 public slots:
+    void slot_changeGamemode(GamemodeType gamemode);
     void slot_undo();
     void slot_reset();
     void slot_drawChess(int x,int y,ChessType chessType);

@@ -1,6 +1,7 @@
 #ifndef PAGEMANAGER_H
 #define PAGEMANAGER_H
 
+#include "EnumType.h"
 #include <QObject>
 #include <QMutex>
 #include <QMutexLocker>
@@ -42,6 +43,7 @@ public:
 
 signals:
     void signal_switchToPage(int index);
+    void signal_changeGamemode(GamemodeType gamemode);
 };
 
 #endif // PAGEMANAGER_H

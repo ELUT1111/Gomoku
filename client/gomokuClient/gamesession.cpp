@@ -1,4 +1,6 @@
 #include "gamesession.h"
+#include <AIPlayer.h>
+#include <HumanPlayer.h>
 #include <qDebug>
 
 GameSession* GameSession::gameSession = nullptr;
@@ -8,8 +10,8 @@ GameSession::GameSession(QObject *parent)
     : QObject{parent}
 {
     initBoard();
-    initPlayer();
-    initConnect();
+    // initPlayer();
+    // initConnect();
 }
 
 GameSession *GameSession::instance()
@@ -32,8 +34,21 @@ void GameSession::initBoard()
 
 void GameSession::initPlayer()
 {
-    player1 = new AbstractPlayer(this,ChessType::BLACK);
-    player2 = new AbstractPlayer(this,ChessType::WHITE);
+    if(player1) delete player1;
+    if(player2) delete player2;
+    if(gamemode == GamemodeType::OFFLINE_FREE)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new HumanPlayer(this,ChessType::WHITE);
+    }else if(gamemode == GamemodeType::OFFLINE_AI)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new AIPlayer(this,ChessType::WHITE);
+    }else if(gamemode == GamemodeType::ONLINE)
+    {
+        //TODO
+    }
+
     currentPlayer = player1;
     lastPlayer = player2;
 }
@@ -53,14 +68,24 @@ void GameSession::resetTurn()
 
 bool GameSession::checkWin(int x, int y, ChessType chessType)
 {
-    for(int i=1;i<4;i++)
+    for(int i=0;i<4;i++)
     {
+        //qDebug()<<boardData->numInRow(x,y,chessType,i);
         if(boardData->numInRow(x,y,chessType,i)>=5)
         {
             return true;
         }
     }
     return false;
+}
+
+void GameSession::slot_changeGamemode(GamemodeType gamemode)
+{
+    qDebug()<<"[session] 当前模式:"<<int(gamemode);
+    this->gamemode = gamemode;
+    initPlayer();
+    initConnect();
+    slot_resetGame();
 }
 
 void GameSession::slot_placeChess(int x, int y, ChessType chessType)

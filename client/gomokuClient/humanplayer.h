@@ -6,7 +6,11 @@
 class HumanPlayer : public AbstractPlayer
 {
 public:
-    explicit HumanPlayer(QObject *parent = nullptr);
+    explicit HumanPlayer(QObject *parent = nullptr , ChessType chessType = ChessType::BLACK);
+
+    // AbstractPlayer interface
+public slots:
+    void slot_onMouseClicked(int x, int y) override;
 };
 
 #endif // HUMANPLAYER_H

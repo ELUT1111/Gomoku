@@ -43,6 +43,7 @@ public:
 
     BoardDataPtr getBoardData() const { return boardData; }
 public:
+    GamemodeType gamemode;
     AbstractPlayer* player1;
     AbstractPlayer* player2;
     AbstractPlayer* currentPlayer; // 当前客户端真人玩家，接受UI的输入转发
@@ -56,6 +57,7 @@ signals:
     void signal_switchTurn();
     void signal_playerWin(AbstractPlayer* player);
 public slots:
+    void slot_changeGamemode(GamemodeType gamemode);
     void slot_placeChess(int x,int y, ChessType chessType);
     void slot_resetGame();
     void slot_handleUndo();

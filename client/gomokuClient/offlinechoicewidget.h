@@ -20,6 +20,8 @@ private slots:
 
     void on_freeButton_clicked();
 
+    void on_easyButton_clicked();
+
 private:
     Ui::OfflineChoiceWidget *ui;
 };

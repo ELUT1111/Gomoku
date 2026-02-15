@@ -1,9 +1,11 @@
+#include "PageManager.h"
 #include "gamewidget.h"
 #include "ui_gamewidget.h"
 
 #include <QVBoxLayout>
 #include <QMouseEvent>
 #include <QMessageBox>
+#include <HumanPlayer.h>
 
 GameWidget::GameWidget(QWidget *parent)
     : QWidget(parent)
@@ -59,6 +61,8 @@ void GameWidget::initUI()
 
 void GameWidget::initConnect()
 {
+    connect(PageManager::instance(),&PageManager::signal_changeGamemode,this,&GameWidget::slot_changeGamemode);
+
     connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
     connect(GameSession::instance(),&GameSession::signal_drawChess,this,&GameWidget::slot_drawChess);
     connect(GameSession::instance(),&GameSession::signal_switchTurn,this,&GameWidget::slot_switchTurn);
@@ -66,12 +70,12 @@ void GameWidget::initConnect()
 
     connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame);
     connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo);
+    connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode);
 }
 
 void GameWidget::drawChess(int x, int y, ChessType chessType)
 {
     if(boardData->getChess(x,y) != ChessType::EMPTY) return;
-    //boardData->setChess(x,y,chessType);
 
     // TODO
 
@@ -228,7 +232,14 @@ GamemodeType GameWidget::getCurrentGamemode() const
 
 void GameWidget::setCurrentGamemode(GamemodeType newCurrentGamemode)
 {
+    qDebug()<<"[gameWidget] 设置模式:"<<int(newCurrentGamemode);
     currentGamemode = newCurrentGamemode;
+    emit signal_changeGamemode(newCurrentGamemode);
+}
+
+void GameWidget::slot_changeGamemode(GamemodeType gamemode)
+{
+    setCurrentGamemode(gamemode);
 }
 
 void GameWidget::slot_undo()
@@ -250,7 +261,7 @@ void GameWidget::slot_drawChess(int x, int y, ChessType chessType)
 
 void GameWidget::slot_switchTurn()
 {
-    //qDebug()<<"交换";
+    //qDebug()<<"[gameWidget] 交换回合";
     disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
     connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
 }
