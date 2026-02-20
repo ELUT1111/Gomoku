@@ -22,7 +22,7 @@ SOURCES += \
     startwidget.cpp
 
 HEADERS += \
-    EnumType.h \
+    SharedType.h \
     abstractplayer.h \
     aiplayer.h \
     boarddata.h \

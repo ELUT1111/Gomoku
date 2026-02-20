@@ -1,7 +1,7 @@
 #ifndef GAMEWIDGET_H
 #define GAMEWIDGET_H
 
-#include "EnumType.h"
+#include "SharedType.h"
 #include "abstractplayer.h"
 #include "gamesession.h"
 #include "boarddata.h"
@@ -75,6 +75,7 @@ signals:
     void signal_mouseClicked(int x,int y);
     void signal_resetBoard();
     void signal_undoRequest();
+    void signal_yourTurn();
 public slots:
     void slot_changeGamemode(GamemodeType gamemode);
     void slot_undo();

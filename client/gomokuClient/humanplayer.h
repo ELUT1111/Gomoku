@@ -5,6 +5,7 @@
 
 class HumanPlayer : public AbstractPlayer
 {
+    Q_OBJECT
 public:
     explicit HumanPlayer(QObject *parent = nullptr , ChessType chessType = ChessType::BLACK);
 

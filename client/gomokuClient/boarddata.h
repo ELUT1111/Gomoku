@@ -2,7 +2,7 @@
 #define BOARDDATA_H
 
 #include <QObject>
-#include <EnumType.h>
+#include <SharedType.h>
 #include <QReadWriteLock>
 
 class BoardData : public QObject

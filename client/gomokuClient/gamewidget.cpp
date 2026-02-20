@@ -1,3 +1,4 @@
+#include "AIPlayer.h"
 #include "PageManager.h"
 #include "gamewidget.h"
 #include "ui_gamewidget.h"
@@ -61,21 +62,24 @@ void GameWidget::initUI()
 
 void GameWidget::initConnect()
 {
-    connect(PageManager::instance(),&PageManager::signal_changeGamemode,this,&GameWidget::slot_changeGamemode);
+    // qDebug()<<"[gameWidget] 初始化连接";
+    connect(PageManager::instance(),&PageManager::signal_changeGamemode,this,&GameWidget::slot_changeGamemode,Qt::UniqueConnection);
 
-    connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
-    connect(GameSession::instance(),&GameSession::signal_drawChess,this,&GameWidget::slot_drawChess);
-    connect(GameSession::instance(),&GameSession::signal_switchTurn,this,&GameWidget::slot_switchTurn);
-    connect(GameSession::instance(),&GameSession::signal_playerWin,this,&GameWidget::slot_playerWin);
 
-    connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame);
-    connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo);
-    connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode);
+    // connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+    connect(GameSession::instance(),&GameSession::signal_drawChess,this,&GameWidget::slot_drawChess,Qt::UniqueConnection);
+    connect(GameSession::instance(),&GameSession::signal_switchTurn,this,&GameWidget::slot_switchTurn,Qt::UniqueConnection);
+    connect(GameSession::instance(),&GameSession::signal_playerWin,this,&GameWidget::slot_playerWin,Qt::UniqueConnection);
+
+    connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame,Qt::UniqueConnection);
+    connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo,Qt::UniqueConnection);
+    connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode,Qt::UniqueConnection);
 }
 
 void GameWidget::drawChess(int x, int y, ChessType chessType)
 {
     if(boardData->getChess(x,y) != ChessType::EMPTY) return;
+    qDebug()<<"[gameWidget] 绘子"<<x<<","<<y;
 
     // TODO
 
@@ -116,6 +120,18 @@ void GameWidget::undoForUI()
     scene->removeItem(last);
     delete last;
     last = nullptr;
+    if(currentGamemode == GamemodeType::OFFLINE_AI)
+    {
+        if(chessItems.isEmpty()) return;
+        auto last = chessItems.takeLast();
+        scene->removeItem(last);
+        delete last;
+        last = nullptr;
+    }
+    else if(currentGamemode == GamemodeType::ONLINE)
+    {
+
+    }
     //QPoint lastGird = chessPoints.takeLast();
     //board[lastGird.x()][lastGird.y()] = 0;
     //std::swap(currentColor,nextColor);
@@ -262,8 +278,31 @@ void GameWidget::slot_drawChess(int x, int y, ChessType chessType)
 void GameWidget::slot_switchTurn()
 {
     //qDebug()<<"[gameWidget] 交换回合";
-    disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
-    connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+    disconnect(this, &GameWidget::signal_mouseClicked, nullptr, nullptr);
+    // if(currentGamemode == GamemodeType::OFFLINE_FREE)
+    // {
+    //     disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
+    // }
+    //disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+    // connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,Qt::UniqueConnection);
+    if (qobject_cast<HumanPlayer*>(GameSession::instance()->currentPlayer)) {
+        connect(this,&GameWidget::signal_mouseClicked,
+                GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,
+                Qt::UniqueConnection);
+    }
+
+    if(currentGamemode == GamemodeType::OFFLINE_AI)
+    {
+        AIPlayer * ai = qobject_cast<AIPlayer*> (GameSession::instance()->currentPlayer);
+        if(ai)
+        {
+            disconnect(this, &GameWidget::signal_yourTurn, nullptr, nullptr);
+            // disconnect(this,&GameWidget::signal_yourTurn,ai,&AIPlayer::slot_myTurn);
+            connect(this,&GameWidget::signal_yourTurn,ai,&AIPlayer::slot_myTurn,Qt::UniqueConnection);
+            emit signal_yourTurn();
+        }
+    }
+
 }
 
 void GameWidget::slot_playerWin(AbstractPlayer *player)

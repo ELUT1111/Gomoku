@@ -1,7 +1,7 @@
 #ifndef ABSTRACTPLAYER_H
 #define ABSTRACTPLAYER_H
 
-#include <EnumType.h>
+#include <SharedType.h>
 #include <QObject>
 
 class AbstractPlayer : public QObject
@@ -15,6 +15,7 @@ signals:
     void signal_tryPlaceChess(int x,int y,ChessType chessType);
 public slots:
     virtual void slot_onMouseClicked(int x,int y);
+    virtual void slot_myTurn();
 
 };
 

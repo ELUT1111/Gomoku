@@ -1,5 +1,5 @@
-#ifndef ENUMTYPE_H
-#define ENUMTYPE_H
+#ifndef SHAREDTYPE_H
+#define SHAREDTYPE_H
 
 #include <QMetaType>
 
@@ -29,8 +29,16 @@ enum class GamemodeType
     ONLINE = 2
 };
 
+namespace EnumUtils{
+    inline ChessType oppo(ChessType ct)
+    {
+        if(ct == ChessType::BLACK) return ChessType::WHITE;
+        else return ChessType::BLACK;
+    }
+}
+
 Q_DECLARE_METATYPE(ChessType)
 Q_DECLARE_METATYPE(AIType)
 Q_DECLARE_METATYPE(GamemodeType)
 
-#endif // ENUMTYPE_H
+#endif // SHAREDTYPE_H

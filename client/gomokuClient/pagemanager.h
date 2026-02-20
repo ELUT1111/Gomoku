@@ -1,7 +1,7 @@
 #ifndef PAGEMANAGER_H
 #define PAGEMANAGER_H
 
-#include "EnumType.h"
+#include "SharedType.h"
 #include <QObject>
 #include <QMutex>
 #include <QMutexLocker>

@@ -34,8 +34,8 @@ void GameSession::initBoard()
 
 void GameSession::initPlayer()
 {
-    if(player1) delete player1;
-    if(player2) delete player2;
+    // if(player1) delete player1;
+    // if(player2) delete player2;
     if(gamemode == GamemodeType::OFFLINE_FREE)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
@@ -43,7 +43,7 @@ void GameSession::initPlayer()
     }else if(gamemode == GamemodeType::OFFLINE_AI)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
-        player2 = new AIPlayer(this,ChessType::WHITE);
+        player2 = new AIPlayer(this,ChessType::WHITE,AIType::EASY);
     }else if(gamemode == GamemodeType::ONLINE)
     {
         //TODO
@@ -55,8 +55,8 @@ void GameSession::initPlayer()
 
 void GameSession::initConnect()
 {
-    connect(player1,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess);
-    connect(player2,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess);
+    connect(player1,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
+    connect(player2,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
 }
 
 void GameSession::resetTurn()
@@ -120,7 +120,18 @@ void GameSession::slot_handleUndo()
     qDebug()<<"[session] 处理悔棋";
     if(chessHistory.isEmpty()) return;
     ChessHistory last = chessHistory.takeLast();
-    boardData->setChess(last.pos.x(),last.pos.y(),ChessType::EMPTY);
-    std::swap(currentPlayer,lastPlayer);
-    emit signal_switchTurn();
+    if(gamemode == GamemodeType::OFFLINE_FREE)
+    {
+        boardData->setChess(last.pos.x(),last.pos.y(),ChessType::EMPTY);
+        std::swap(currentPlayer,lastPlayer);
+        emit signal_switchTurn();
+    }
+    else if(gamemode == GamemodeType::OFFLINE_AI)
+    {
+        if(chessHistory.isEmpty()) return;
+        ChessHistory last2 = chessHistory.takeLast();
+        boardData->setChess(last.pos.x(),last.pos.y(),ChessType::EMPTY);
+        boardData->setChess(last2.pos.x(),last2.pos.y(),ChessType::EMPTY);
+    }
+
 }
