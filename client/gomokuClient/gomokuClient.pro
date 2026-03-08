@@ -11,6 +11,7 @@ CONFIG += c++17
 SOURCES += \
     abstractplayer.cpp \
     aiplayer.cpp \
+    aithinkworker.cpp \
     boarddata.cpp \
     gamesession.cpp \
     gamewidget.cpp \
@@ -25,6 +26,7 @@ HEADERS += \
     SharedType.h \
     abstractplayer.h \
     aiplayer.h \
+    aithinkworker.h \
     boarddata.h \
     gamesession.h \
     gamewidget.h \

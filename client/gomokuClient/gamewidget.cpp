@@ -7,6 +7,7 @@
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <HumanPlayer.h>
+#include <QMovie>
 
 GameWidget::GameWidget(QWidget *parent)
     : QWidget(parent)
@@ -56,6 +57,25 @@ void GameWidget::initUI()
     boardItem = new QGraphicsPixmapItem(boardPix);
     scene->addItem(boardItem);
 
+    // 1. 加载动画（GIF）
+    aiLoadingGif = new QLabel(this);
+    loadingMovie = new QMovie(":/pic/res/picture/loading.gif"); // 替换为你的 GIF 路径
+    aiLoadingGif->setMovie(loadingMovie);
+    aiLoadingGif->setFixedSize(100, 100); // 动画大小
+    aiLoadingGif->setAlignment(Qt::AlignCenter);
+    aiLoadingGif->setStyleSheet("background: transparent;");
+    aiLoadingGif->hide();
+
+    // 2. 文本提示
+    aiThinkingLabel = new QLabel("AI 正在思考...", this);
+    aiThinkingLabel->setStyleSheet("color: white; font-size: 16px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 8px;");
+    aiThinkingLabel->setAlignment(Qt::AlignCenter);
+    aiThinkingLabel->hide();
+
+    // 3. 叠加到棋盘视图上
+    aiLoadingGif->setParent(view);
+    aiThinkingLabel->setParent(view);
+
     // 设置场景大小
     scene->setSceneRect(boardItem->boundingRect());
 }
@@ -74,6 +94,33 @@ void GameWidget::initConnect()
     connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame,Qt::UniqueConnection);
     connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo,Qt::UniqueConnection);
     connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode,Qt::UniqueConnection);
+
+    // 监听 AI 思考状态
+    connect(GameSession::instance(), &GameSession::signal_switchTurn, this, [this]() {
+        AIPlayer *ai = qobject_cast<AIPlayer*>(GameSession::instance()->currentPlayer);
+        if (ai) {
+            // 连接 AI 思考信号（避免重复连接）
+            disconnect(ai, &AIPlayer::thinkStarted, this, nullptr);
+            disconnect(ai, &AIPlayer::thinkFinished, this, nullptr);
+
+            connect(ai, &AIPlayer::thinkStarted, this, [this]() {
+                // AI 开始思考：显示动画 + 禁用棋盘点击
+                aiLoadingGif->show();
+                aiThinkingLabel->show();
+                loadingMovie->start();
+                view->setEnabled(false); // 禁用人类操作
+            });
+
+            connect(ai, &AIPlayer::thinkFinished, this, [this]() {
+                // AI 思考完成：隐藏动画 + 启用棋盘点击
+                aiLoadingGif->hide();
+                aiThinkingLabel->hide();
+                loadingMovie->stop();
+                view->setEnabled(true);
+            });
+        }
+    });
+
 }
 
 void GameWidget::drawChess(int x, int y, ChessType chessType)
@@ -120,7 +167,7 @@ void GameWidget::undoForUI()
     scene->removeItem(last);
     delete last;
     last = nullptr;
-    if(currentGamemode == GamemodeType::OFFLINE_AI)
+    if(isAIMode())
     {
         if(chessItems.isEmpty()) return;
         auto last = chessItems.takeLast();
@@ -154,6 +201,13 @@ void GameWidget::clearBoardForUI()
 bool GameWidget::checkPoint(int x, int y)
 {
     return x>=0 && x<15 && y>=0 && y<15;
+}
+
+bool GameWidget::isAIMode()
+{
+    return (currentGamemode == GamemodeType::OFFLINE_AI_EASY ||
+            currentGamemode == GamemodeType::OFFLINE_AI_NORMAL ||
+            currentGamemode == GamemodeType::OFFLINE_AI_HARD);
 }
 
 QPoint GameWidget::posToGrid(const QPoint &pos)
@@ -201,6 +255,15 @@ void GameWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     updateViewScale();
+
+    // 调整加载控件位置
+    if (aiLoadingGif && aiThinkingLabel) {
+        QSize gifSize = aiLoadingGif->size();
+        aiLoadingGif->move(view->width()/2 - gifSize.width()/2,
+                           view->height()/2 - gifSize.height()/2 - 30);
+        aiThinkingLabel->move(view->width()/2 - aiThinkingLabel->width()/2,
+                              view->height()/2 + gifSize.height()/2);
+    }
 }
 
 void GameWidget::mousePressEvent(QMouseEvent *event)
@@ -291,7 +354,7 @@ void GameWidget::slot_switchTurn()
                 Qt::UniqueConnection);
     }
 
-    if(currentGamemode == GamemodeType::OFFLINE_AI)
+    if(isAIMode())
     {
         AIPlayer * ai = qobject_cast<AIPlayer*> (GameSession::instance()->currentPlayer);
         if(ai)

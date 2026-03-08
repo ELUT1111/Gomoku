@@ -40,6 +40,7 @@ public:
     void resetTurn();
 
     bool checkWin(int x,int y,ChessType chessType);
+    bool isAIMode();
 
     BoardDataPtr getBoardData() const { return boardData; }
 public:

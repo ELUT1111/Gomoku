@@ -10,6 +10,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
+#include <QLabel>
 
 
 namespace Ui {
@@ -32,6 +33,7 @@ public:
     void clearBoardForUI();
 
     bool checkPoint(int x,int y);
+    bool isAIMode();
 
     QPoint posToGrid(const QPoint &pos);
 
@@ -70,6 +72,10 @@ private:
     const QString PATH_blackChess = ":/pic/res/picture/black_chess.png";
     const QString PATH_whiteChess = ":/pic/res/picture/white_chess.png";
     const QString PATH_board = ":/pic/res/picture/game_background.bmp";
+
+    QLabel *aiThinkingLabel; // “AI 正在思考”文本
+    QLabel *aiLoadingGif;    // 加载动画
+    QMovie *loadingMovie;    // GIF 动画资源
 signals:
     void signal_changeGamemode(GamemodeType gamemode);
     void signal_mouseClicked(int x,int y);

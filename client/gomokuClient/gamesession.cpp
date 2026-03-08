@@ -40,11 +40,20 @@ void GameSession::initPlayer()
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
         player2 = new HumanPlayer(this,ChessType::WHITE);
-    }else if(gamemode == GamemodeType::OFFLINE_AI)
+    }else if(gamemode == GamemodeType::OFFLINE_AI_EASY)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
         player2 = new AIPlayer(this,ChessType::WHITE,AIType::EASY);
-    }else if(gamemode == GamemodeType::ONLINE)
+    }else if(gamemode == GamemodeType::OFFLINE_AI_NORMAL)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new AIPlayer(this,ChessType::WHITE,AIType::NORMAL);
+    }else if(gamemode == GamemodeType::OFFLINE_AI_HARD)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new AIPlayer(this,ChessType::WHITE,AIType::HARD);
+    }
+    else if(gamemode == GamemodeType::ONLINE)
     {
         //TODO
     }
@@ -77,6 +86,13 @@ bool GameSession::checkWin(int x, int y, ChessType chessType)
         }
     }
     return false;
+}
+
+bool GameSession::isAIMode()
+{
+    return gamemode == GamemodeType::OFFLINE_AI_EASY ||
+           gamemode == GamemodeType::OFFLINE_AI_NORMAL ||
+           gamemode == GamemodeType::OFFLINE_AI_HARD;
 }
 
 void GameSession::slot_changeGamemode(GamemodeType gamemode)
@@ -126,7 +142,7 @@ void GameSession::slot_handleUndo()
         std::swap(currentPlayer,lastPlayer);
         emit signal_switchTurn();
     }
-    else if(gamemode == GamemodeType::OFFLINE_AI)
+    else if(gamemode == GamemodeType::OFFLINE_AI_EASY)
     {
         if(chessHistory.isEmpty()) return;
         ChessHistory last2 = chessHistory.takeLast();

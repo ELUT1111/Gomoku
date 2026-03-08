@@ -25,8 +25,10 @@ enum class AIType
 enum class GamemodeType
 {
     OFFLINE_FREE = 0,
-    OFFLINE_AI = 1,
-    ONLINE = 2
+    OFFLINE_AI_EASY = 1,
+    OFFLINE_AI_NORMAL = 2,
+    OFFLINE_AI_HARD = 3,
+    ONLINE = 4
 };
 
 namespace EnumUtils{
