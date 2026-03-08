@@ -1,4 +1,4 @@
 # Gomuku|经典五子棋游戏
-前端：Qt
+Qt：前端 + 离线模式后端
 
-后端：spring boot
+spring boot：在线模式后端
