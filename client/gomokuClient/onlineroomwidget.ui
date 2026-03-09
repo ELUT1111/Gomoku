@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OnlineRoomWidget</class>
+ <widget class="QWidget" name="OnlineRoomWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>在线房间</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    /* 全局样式 */
+    QWidget {
+     background-color: #F5F7FA;
+     font-family: "Microsoft YaHei";
+     font-size: 14px;
+    }
+    /* 标题栏样式 */
+    QFrame#frameTitle {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     border-radius: 12px 12px 0 0;
+     color: white;
+    }
+    /* 玩家卡片样式 */
+    QFrame#cardHost, QFrame#cardOpponent {
+     background-color: white;
+     border-radius: 10px;
+     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+     border: 1px solid #EEEEEE;
+    }
+    /* 卡片标题 */
+    QLabel#lblHostTitle, QLabel#lblOpponentTitle {
+     font-size: 16px;
+     font-weight: bold;
+     color: #333333;
+    }
+    /* 信息文本 */
+    QLabel#lblHostId, QLabel#lblOpponentId, QLabel#lblHostChess, QLabel#lblOpponentChess {
+     color: #666666;
+    }
+    /* 状态文本 */
+    QLabel#lblHostStatus, QLabel#lblOpponentStatus {
+     font-size: 13px;
+    }
+    QLabel#lblHostStatus {
+     color: #4A6CF7;
+    }
+    QLabel#lblOpponentStatus {
+     color: #FF6B6B;
+    }
+    /* 按钮通用样式 */
+    QPushButton {
+     border-radius: 8px;
+     font-size: 14px;
+     height: 40px;
+     border: none;
+    }
+    /* 主按钮（开始游戏） */
+    QPushButton#btnStartGame {
+     background-color: #4A6CF7;
+     color: white;
+    }
+    QPushButton#btnStartGame:disabled {
+     background-color: #CCCCCC;
+     color: #999999;
+    }
+    QPushButton#btnStartGame:hover {
+     background-color: #3A5CE7;
+    }
+    /* 次要按钮（复制/退出） */
+    QPushButton#btnCopyRoomId, QPushButton#btnQuitRoom {
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+    }
+    QPushButton#btnCopyRoomId:hover, QPushButton#btnQuitRoom:hover {
+     background-color: #F8F8F8;
+     color: #333333;
+    }
+    /* 状态提示 */
+    QLabel#lblRoomStatus {
+     font-size: 18px;
+     font-weight: bold;
+     color: #4A6CF7;
+    }
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,0">
+   <!-- 顶部标题栏：房间号 + 游戏模式 -->
+   <item>
+    <widget class="QFrame" name="frameTitle">
+     <layout class="QHBoxLayout" name="horizontalLayoutTitle">
+      <item>
+       <widget class="QLabel" name="lblRoomTitle">
+        <property name="text">
+         <string>房间号：</string>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>18</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblRoomId">
+        <property name="text">
+         <string>886699</string>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>18</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacerTitle">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblGameMode">
+        <property name="text">
+         <string>五子棋 - 在线对战</string>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>16</pointsize>
+         </font>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <!-- 中间状态提示：等待对手/对手已加入 -->
+   <item>
+    <widget class="QLabel" name="lblRoomStatus">
+     <property name="text">
+      <string>等待对手加入...</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="minimumHeight">
+      <number>60</number>
+     </property>
+    </widget>
+   </item>
+   <!-- 玩家信息卡片区：房主 + 对手 -->
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutCards" stretch="1,1">
+     <!-- 房主卡片 -->
+     <item>
+      <widget class="QFrame" name="cardHost">
+       <layout class="QVBoxLayout" name="verticalLayoutHost" stretch="0,0,0,1">
+        <!-- 修复：contentsMargins 改为 4个整数（left,top,right,bottom） -->
+        <property name="contentsMargins">
+         <set>20 20 20 20</set>
+        </property>
+        <!-- 房主头像 -->
+        <item>
+         <widget class="QLabel" name="lblHostAvatar">
+          <property name="minimumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+            border-radius: 40px;
+            background-color: #4A6CF7;
+            image: url(:/res/avatar_host.png); /* 替换为实际头像路径 */
+           </string>
+          </property>
+          <property name="scaledContents">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <!-- 房主标题（房主） -->
+        <item>
+         <widget class="QLabel" name="lblHostTitle">
+          <property name="text">
+           <string>房主</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="minimumHeight">
+           <number>30</number>
+          </property>
+         </widget>
+        </item>
+        <!-- 房主ID -->
+        <item>
+         <widget class="QLabel" name="lblHostId">
+          <property name="text">
+           <string>玩家ID：player_123456</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <!-- 房主棋子颜色 -->
+        <item>
+         <widget class="QLabel" name="lblHostChess">
+          <property name="text">
+           <string>棋子：黑色</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <!-- 房主状态 -->
+        <item>
+         <widget class="QLabel" name="lblHostStatus">
+          <property name="text">
+           <string>已在线</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <!-- 对手卡片 -->
+     <item>
+      <widget class="QFrame" name="cardOpponent">
+       <layout class="QVBoxLayout" name="verticalLayoutOpponent" stretch="0,0,0,1">
+        <!-- 修复：contentsMargins 改为 4个整数 -->
+        <property name="contentsMargins">
+         <set>20 20 20 20</set>
+        </property>
+        <!-- 对手头像 -->
+        <item>
+         <widget class="QLabel" name="lblOpponentAvatar">
+          <property name="minimumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+            border-radius: 40px;
+            background-color: #CCCCCC;
+            image: url(:/res/avatar_opponent.png); /* 替换为实际头像路径 */
+           </string>
+          </property>
+          <property name="scaledContents">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <!-- 对手标题（对手） -->
+        <item>
+         <widget class="QLabel" name="lblOpponentTitle">
+          <property name="text">
+           <string>对手</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="minimumHeight">
+           <number>30</number>
+          </property>
+         </widget>
+        </item>
+        <!-- 对手ID（默认未加入） -->
+        <item>
+         <widget class="QLabel" name="lblOpponentId">
+          <property name="text">
+           <string>玩家ID：未加入</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <!-- 对手棋子颜色（默认未加入） -->
+        <item>
+         <widget class="QLabel" name="lblOpponentChess">
+          <property name="text">
+           <string>棋子：白色</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <!-- 对手状态 -->
+        <item>
+         <widget class="QLabel" name="lblOpponentStatus">
+          <property name="text">
+           <string>未在线</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <!-- 底部操作按钮区 -->
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutButtons" stretch="1,1,1">
+     <!-- 修复：contentsMargins 改为 4个整数 -->
+     <property name="contentsMargins">
+      <set>40 20 40 40</set>
+     </property>
+     <!-- 复制房间号按钮 -->
+     <item>
+      <widget class="QPushButton" name="btnCopyRoomId">
+       <property name="text">
+        <string>复制房间号</string>
+       </property>
+      </widget>
+     </item>
+     <!-- 开始游戏按钮（默认禁用，对手加入后启用） -->
+     <item>
+      <widget class="QPushButton" name="btnStartGame">
+       <property name="text">
+        <string>开始游戏</string>
+       </property>
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <!-- 退出房间按钮 -->
+     <item>
+      <widget class="QPushButton" name="btnQuitRoom">
+       <property name="text">
+        <string>退出房间</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

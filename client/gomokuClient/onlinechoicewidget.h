@@ -1,0 +1,27 @@
+#ifndef ONLINECHOICEWIDGET_H
+#define ONLINECHOICEWIDGET_H
+
+#include <QWidget>
+
+namespace Ui {
+class OnlineChoiceWidget;
+}
+
+class OnlineChoiceWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit OnlineChoiceWidget(QWidget *parent = nullptr);
+    ~OnlineChoiceWidget();
+
+private slots:
+    void on_returnButton_2_clicked();
+
+    void on_addRoomButton_clicked();
+
+private:
+    Ui::OnlineChoiceWidget *ui;
+};
+
+#endif // ONLINECHOICEWIDGET_H

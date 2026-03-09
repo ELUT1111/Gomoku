@@ -1,8 +1,11 @@
 #include "mainwindow.h"
+#include "onlineroomwidget.h"
 #include "ui_mainwindow.h"
 #include "startwidget.h"
 #include "offlinechoicewidget.h"
 #include "gamewidget.h"
+
+#include <OnlineChoiceWidget.h>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -21,10 +24,15 @@ void MainWindow::initPage()
     startWidget = new StartWidget();
     offlineChoiceWidget = new OfflineChoiceWidget();
     gameWidget = new GameWidget();
+    onlineChoiceWidget = new OnlineChoiceWidget();
+    onlineRoomWidget = new OnlineRoomWidget();
     ui->startLayout->addWidget(startWidget);
     ui->offlineChoiceLayout->addWidget(offlineChoiceWidget);
+    ui->onlineChoiceLayout->addWidget(onlineChoiceWidget);
+    ui->onlineRoomLayout->addWidget(onlineRoomWidget);
 
     ui->gameLayout_main->addWidget(gameWidget);
+
 
     changePage(0);
 }

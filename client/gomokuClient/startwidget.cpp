@@ -24,3 +24,9 @@ void StartWidget::on_quitButton_clicked()
     QApplication::quit();
 }
 
+
+void StartWidget::on_onlineButton_clicked()
+{
+    PageManager::instance()->switchToPage(2);
+}
+

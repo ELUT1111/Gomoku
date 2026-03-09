@@ -19,6 +19,8 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     offlinechoicewidget.cpp \
+    onlinechoicewidget.cpp \
+    onlineroomwidget.cpp \
     pagemanager.cpp \
     startwidget.cpp
 
@@ -33,6 +35,8 @@ HEADERS += \
     humanplayer.h \
     mainwindow.h \
     offlinechoicewidget.h \
+    onlinechoicewidget.h \
+    onlineroomwidget.h \
     pagemanager.h \
     startwidget.h
 
@@ -40,6 +44,8 @@ FORMS += \
     gamewidget.ui \
     mainwindow.ui \
     offlinechoicewidget.ui \
+    onlinechoicewidget.ui \
+    onlineroomwidget.ui \
     startwidget.ui
 
 # Default rules for deployment.

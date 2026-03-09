@@ -24,7 +24,7 @@
     <item>
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
-       <number>4</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="startPage">
        <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -40,8 +40,20 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="page_3"/>
-      <widget class="QWidget" name="page_4"/>
+      <widget class="QWidget" name="onlineChoicePage">
+       <layout class="QVBoxLayout" name="verticalLayout_7">
+        <item>
+         <layout class="QVBoxLayout" name="onlineChoiceLayout"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="onlineRoomPage">
+       <layout class="QVBoxLayout" name="verticalLayout_8">
+        <item>
+         <layout class="QVBoxLayout" name="onlineRoomLayout"/>
+        </item>
+       </layout>
+      </widget>
       <widget class="QWidget" name="gamePage">
        <layout class="QVBoxLayout" name="verticalLayout_5">
         <property name="bottomMargin">
@@ -139,7 +151,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>21</height>
+     <height>25</height>
     </rect>
    </property>
   </widget>
