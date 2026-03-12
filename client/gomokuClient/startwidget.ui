@@ -11,15 +11,107 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Form</string>
+   <string>五子棋 - 开始界面</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout" stretch="1,2">
+  <!-- 全局样式：与OnlineRoomWidget风格统一 -->
+  <property name="styleSheet">
+   <string notr="true">
+    /* 全局基础样式 */
+    QWidget {
+     background-color: #F5F7FA;
+     font-family: "Microsoft YaHei";
+     font-size: 14px;
+    }
+    /* 分组框样式：卡片化、圆角、阴影 */
+    QGroupBox#groupBox_3 {
+     border: none;
+     background-color: white;
+     border-radius: 12px;
+     box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+     margin-top: 10px;
+     padding-top: 20px;
+    }
+    /* 分组框标题（隐藏，保持布局） */
+    QGroupBox#groupBox_3::title {
+     subcontrol-origin: margin;
+     subcontrol-position: top center;
+     padding: 0 10px;
+     color: transparent;
+    }
+    /* 按钮通用样式 */
+    QPushButton {
+     border-radius: 8px;
+     border: none;
+     font-size: 15px;
+     height: 45px;
+     margin: 8px 15px;
+    }
+    /* 主功能按钮（离线/在线） */
+    QPushButton#offlineButton, QPushButton#onlineButton {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     color: white;
+    }
+    QPushButton#offlineButton:hover, QPushButton#onlineButton:hover {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
+    }
+    /* 次要按钮（退出） */
+    QPushButton#quitButton {
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+     font-size: 12px;
+    }
+    QPushButton#quitButton:hover {
+     background-color: #F8F8F8;
+     color: #FF6B6B;
+     border-color: #FFE6E6;
+    }
+   </string>
+  </property>
+  <!-- 原有布局结构完全保留，仅优化边距和拉伸比 -->
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="1,3">
+   <property name="contentsMargins">
+    <set>20 20 20 20</set>
+   </property>
+   <property name="spacing">
+    <number>10</number>
+   </property>
    <item>
-    <widget class="QWidget" name="widget" native="true"/>
+    <widget class="QWidget" name="widget" native="true">
+     <!-- 新增标题（不影响原有组件，仅美化） -->
+     <layout class="QHBoxLayout" name="horizontalLayoutTitle">
+      <property name="contentsMargins">
+       <set>0 0 0 0</set>
+      </property>
+      <item>
+       <widget class="QLabel" name="lblGameTitle">
+        <property name="text">
+         <string>五子棋对战</string>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>24</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">color: #4A6CF7;</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
    <item>
     <widget class="QWidget" name="widget_2" native="true">
      <layout class="QHBoxLayout" name="horizontalLayout" stretch="2,3,2">
+      <property name="contentsMargins">
+       <set>0 0 0 0</set>
+      </property>
       <item>
        <spacer name="horizontalSpacer_2">
         <property name="orientation">
@@ -36,6 +128,12 @@
       <item>
        <widget class="QGroupBox" name="groupBox_3">
         <layout class="QVBoxLayout" name="verticalLayout_2">
+         <property name="contentsMargins">
+          <set>10 10 10 10</set>
+         </property>
+         <property name="spacing">
+          <number>5</number>
+         </property>
          <item>
           <widget class="QPushButton" name="offlineButton">
            <property name="sizePolicy">
