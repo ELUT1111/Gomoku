@@ -20,6 +20,10 @@ private slots:
 
     void on_addRoomButton_clicked();
 
+    void on_JoinRoomButton_clicked();
+
+    void on_searchGameButton_clicked();
+
 private:
     Ui::OnlineChoiceWidget *ui;
 };

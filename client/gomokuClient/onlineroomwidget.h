@@ -18,6 +18,10 @@ public:
 private slots:
     void on_btnQuitRoom_clicked();
 
+    void on_btnCopyRoomId_clicked();
+
+    void on_btnStartGame_clicked();
+
 private:
     Ui::OnlineRoomWidget *ui;
 };

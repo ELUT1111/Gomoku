@@ -95,6 +95,15 @@ void GameWidget::initConnect()
     connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo,Qt::UniqueConnection);
     connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode,Qt::UniqueConnection);
 
+    // 新增：绑定在线游戏结束信号
+    connect(GameSession::instance(), &GameSession::sig_onlineGameOver, this, [this](QString msg){
+        QMessageBox::information(this, "游戏结束", msg);
+        slot_reset();
+    });
+    // 新增：绑定在线错误信号
+    connect(GameSession::instance(), &GameSession::sig_onlineError, this, [this](QString msg){
+        QMessageBox::warning(this, "在线错误", msg);
+    });
     // 监听 AI 思考状态
     connect(GameSession::instance(), &GameSession::signal_switchTurn, this, [this]() {
         AIPlayer *ai = qobject_cast<AIPlayer*>(GameSession::instance()->currentPlayer);
@@ -177,7 +186,8 @@ void GameWidget::undoForUI()
     }
     else if(currentGamemode == GamemodeType::ONLINE)
     {
-
+        QMessageBox::warning(this, "提示", "在线模式下不支持悔棋！");
+        return;
     }
     //QPoint lastGird = chessPoints.takeLast();
     //board[lastGird.x()][lastGird.y()] = 0;
@@ -186,6 +196,11 @@ void GameWidget::undoForUI()
 
 void GameWidget::clearBoardForUI()
 {
+    if(currentGamemode == GamemodeType::ONLINE)
+    {
+        QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
+        return;
+    }
     currentColor = 1;
     nextColor = 2;
     //initBoard();
@@ -269,6 +284,14 @@ void GameWidget::resizeEvent(QResizeEvent *event)
 void GameWidget::mousePressEvent(QMouseEvent *event)
 {
     QWidget::mousePressEvent(event);
+    if(currentGamemode == GamemodeType::ONLINE)
+    {
+        // 判断当前玩家是否为人类在线玩家（避免重复点击）
+        if(!qobject_cast<OnlinePlayer*>(GameSession::instance()->currentPlayer))
+        {
+            return;
+        }
+    }
     if(event->button() == Qt::LeftButton)
     {
         QPoint grid = posToGrid(event->pos());

@@ -1,91 +1,159 @@
 package com.elut1111.gomokuservice.manager;
 
+import com.elut1111.gomokuservice.entity.Player;
+import com.elut1111.gomokuservice.entity.Room;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 房间管理器（内存存储，开发/测试用）
+ * 房间管理器（内存存储，后续可扩展Redis持久化）
+ * 保留原有方法名，仅拓展功能，完全兼容现有调用
  */
 @Component
 public class RoomManager {
-    // 房间映射：key=roomId，value=[创建者会话, 加入者会话]
-    private static final Map<String, WebSocketSession[]> ROOM_MAP = new ConcurrentHashMap<>();
+    // 房间映射：key=roomId，value=Room实体（替换原有数组存储）
+    private static final Map<String, Room> ROOM_MAP = new ConcurrentHashMap<>();
+    // 会话-房间映射：key=sessionId，value=roomId（快速查询玩家所在房间）
+    private static final Map<String, String> SESSION_ROOM_MAP = new ConcurrentHashMap<>();
 
     /**
-     * 创建房间，返回8位短房间ID
+     * 创建房间（保留原有方法名，返回8位短ID）
      */
     public String createRoom(WebSocketSession creator) {
-        String roomId = UUID.randomUUID().toString().substring(0, 8);
-        ROOM_MAP.put(roomId, new WebSocketSession[]{creator, null});
-        return roomId;
+        Room room = new Room();
+        // 创建者为黑棋玩家
+        Player blackPlayer = new Player("BLACK", creator);
+        room.setBlackPlayer(blackPlayer);
+        // 存入房间映射
+        ROOM_MAP.put(room.getRoomId(), room);
+        // 绑定会话-房间
+        SESSION_ROOM_MAP.put(creator.getId(), room.getRoomId());
+        return room.getRoomId();
     }
 
     /**
-     * 加入房间
+     * 加入房间（保留原有方法名）
      */
     public void joinRoom(String roomId, WebSocketSession joiner) {
-        WebSocketSession[] sessions = ROOM_MAP.get(roomId);
-        if (sessions != null) {
-            sessions[1] = joiner;
-            ROOM_MAP.put(roomId, sessions);
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null || room.getStatus() != Room.RoomStatus.WAIT) {
+            return;
         }
+        // 加入者为白棋玩家
+        Player whitePlayer = new Player("WHITE", joiner);
+        room.setWhitePlayer(whitePlayer);
+        // 房间状态改为游戏中
+        room.setStatus(Room.RoomStatus.PLAYING);
+        // 绑定会话-房间
+        SESSION_ROOM_MAP.put(joiner.getId(), roomId);
     }
 
     /**
-     * 判断房间是否存在
+     * 判断房间是否存在（保留原有方法名）
      */
     public boolean existsRoom(String roomId) {
-        return ROOM_MAP.containsKey(roomId);
+        Room room = ROOM_MAP.get(roomId);
+        return room != null && room.getStatus() != Room.RoomStatus.CLOSE;
     }
 
     /**
-     * 判断房间是否已满（2人）
+     * 判断房间是否已满（保留原有方法名）
      */
     public boolean isRoomFull(String roomId) {
-        WebSocketSession[] sessions = ROOM_MAP.get(roomId);
-        return sessions != null && sessions[1] != null;
+        Room room = ROOM_MAP.get(roomId);
+        return room != null && room.isFull();
     }
 
     /**
-     * 获取房间内的对手会话
+     * 获取房间内的对手会话（保留原有方法名）
      */
     public WebSocketSession getOpponent(String roomId, WebSocketSession currentSession) {
-        WebSocketSession[] sessions = ROOM_MAP.get(roomId);
-        if (sessions == null) return null;
-        return sessions[0] == currentSession ? sessions[1] : sessions[0];
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null || !room.isFull()) {
+            return null;
+        }
+        Player currentPlayer = getPlayerBySession(room, currentSession);
+        Player opponent = room.getOpponent(currentPlayer);
+        return opponent != null && opponent.isOnline() ? opponent.getSession() : null;
     }
 
     /**
-     * 判断会话是否在指定房间内
+     * 判断会话是否在指定房间内（保留原有方法名）
      */
     public boolean isInRoom(String roomId, WebSocketSession session) {
-        WebSocketSession[] sessions = ROOM_MAP.get(roomId);
-        return sessions != null && (sessions[0] == session || sessions[1] == session);
+        Room room = ROOM_MAP.get(roomId);
+        return room != null && room.isPlayerInRoom(session.getId());
     }
 
     /**
-     * 移除断开连接的会话，清理空房间
+     * 移除断开连接的会话，清理房间（保留原有方法名，完善逻辑）
      */
     public void removeSession(WebSocketSession session) {
-        ROOM_MAP.entrySet().removeIf(entry -> {
-            WebSocketSession[] sessions = entry.getValue();
-            boolean contains = sessions[0] == session || sessions[1] == session;
-            if (contains) {
-                // 房间内有玩家断开，直接销毁房间
-                return true;
-            }
-            return false;
-        });
+        String sessionId = session.getId();
+        String roomId = SESSION_ROOM_MAP.get(sessionId);
+        if (roomId == null) {
+            return;
+        }
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null) {
+            SESSION_ROOM_MAP.remove(sessionId);
+            return;
+        }
+
+        // 标记玩家为离线
+        Player player = getPlayerBySession(room, session);
+        if (player != null) {
+            player.setOnline(false);
+        }
+
+        // 房间状态改为关闭，清理映射
+        room.setStatus(Room.RoomStatus.CLOSE);
+        ROOM_MAP.remove(roomId);
+        // 清理该房间所有会话绑定
+        SESSION_ROOM_MAP.entrySet().removeIf(entry -> entry.getValue().equals(roomId));
     }
 
     /**
-     * 销毁房间
+     * 销毁房间（保留原有方法名，完善逻辑）
      */
     public void destroyRoom(String roomId) {
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null) {
+            return;
+        }
+        room.setStatus(Room.RoomStatus.CLOSE);
         ROOM_MAP.remove(roomId);
+        // 清理会话-房间绑定
+        SESSION_ROOM_MAP.entrySet().removeIf(entry -> entry.getValue().equals(roomId));
+    }
+
+    // ---------------------- 新增拓展方法（无原有方法冲突） ----------------------
+    /**
+     * 根据房间ID获取房间实体
+     */
+    public Room getRoomByRoomId(String roomId) {
+        return ROOM_MAP.get(roomId);
+    }
+
+    /**
+     * 根据会话获取玩家实体
+     */
+    public Player getPlayerBySession(Room room, WebSocketSession session) {
+        if (room.getBlackPlayer() != null && room.getBlackPlayer().getSession().getId().equals(session.getId())) {
+            return room.getBlackPlayer();
+        } else if (room.getWhitePlayer() != null && room.getWhitePlayer().getSession().getId().equals(session.getId())) {
+            return room.getWhitePlayer();
+        }
+        return null;
+    }
+
+    /**
+     * 根据会话ID获取所在房间ID
+     */
+    public String getRoomIdBySessionId(String sessionId) {
+        return SESSION_ROOM_MAP.get(sessionId);
     }
 }

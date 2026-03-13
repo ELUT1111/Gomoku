@@ -8,6 +8,10 @@ const int BOARD_SIZE = 15;
 //方向数组
 const int DIRS[8][2] = {{0,1},{1,0},{1,1},{-1,1},{0,-1},{-1,0},{-1,-1},{1,-1}};
 
+const QString WS_SERVER_URL = "ws://localhost:8080/gomoku/ws";
+// 在线玩家标识
+const QString ONLINE_PLAYER_BLACK = "BLACK";
+const QString ONLINE_PLAYER_WHITE = "WHITE";
 enum class ChessType
 {
     EMPTY = 0,

@@ -34,8 +34,10 @@ void GameSession::initBoard()
 
 void GameSession::initPlayer()
 {
-    // if(player1) delete player1;
-    // if(player2) delete player2;
+    if(player1) delete player1;
+    if(player2) delete player2;
+    player1 = nullptr;
+    player2 = nullptr;
     if(gamemode == GamemodeType::OFFLINE_FREE)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
@@ -55,7 +57,19 @@ void GameSession::initPlayer()
     }
     else if(gamemode == GamemodeType::ONLINE)
     {
-        //TODO
+        m_onlineBlackPlayer = new OnlinePlayer(this, ChessType::BLACK);
+        m_onlineWhitePlayer = new OnlinePlayer(this, ChessType::WHITE);
+        player1 = m_onlineBlackPlayer; // 与离线模式统一player1/player2，不修改原有逻辑
+        player2 = m_onlineWhitePlayer;
+        // 绑定网络层的对手落子信号→在线玩家处理
+        NetworkManager& netMgr = NetworkManager::instance();
+        connect(&netMgr, &NetworkManager::moveReceived, this, &GameSession::slot_handleOpponentMove);
+        // 绑定网络层的游戏结束信号→会话处理
+        connect(&netMgr, &NetworkManager::sig_gameOverReceived, this, &GameSession::slot_handleOnlineGameOver);
+        // 绑定网络层的错误信号→会话转发
+        connect(&netMgr, &NetworkManager::sig_errorReceived, this, [this](QString msg){
+            emit sig_onlineError(msg);
+        });
     }
 
     currentPlayer = player1;
@@ -150,4 +164,47 @@ void GameSession::slot_handleUndo()
         boardData->setChess(last2.pos.x(),last2.pos.y(),ChessType::EMPTY);
     }
 
+}
+void GameSession::setOnlinePlayerTag(ChessType chessType, const QString& tag)
+{
+    if(chessType == ChessType::BLACK && m_onlineBlackPlayer)
+    {
+        m_onlineBlackPlayer->setOnlinePlayerTag(tag);
+    }else if(chessType == ChessType::WHITE && m_onlineWhitePlayer)
+    {
+        m_onlineWhitePlayer->setOnlinePlayerTag(tag);
+    }
+}
+
+// 获取在线玩家
+OnlinePlayer* GameSession::getOnlinePlayer(ChessType chessType)
+{
+    return (chessType == ChessType::BLACK) ? m_onlineBlackPlayer : m_onlineWhitePlayer;
+}
+
+// 处理对手落子→转发给在线玩家
+void GameSession::slot_handleOpponentMove(int x, int y, int color)
+{
+    if(gamemode != GamemodeType::ONLINE) return;
+    // 转发给在线玩家处理绘子
+    if(color == 1) // 对手黑方→己方白方处理
+    {
+        m_onlineWhitePlayer->slot_onOpponentMoveReceived(x, y, color);
+    }else // 对手白方→己方黑方处理
+    {
+        m_onlineBlackPlayer->slot_onOpponentMoveReceived(x, y, color);
+    }
+    // 交换回合
+    std::swap(currentPlayer, lastPlayer);
+    emit signal_switchTurn();
+}
+
+// 处理在线游戏结束
+void GameSession::slot_handleOnlineGameOver(QString msg)
+{
+    if(gamemode != GamemodeType::ONLINE) return;
+    qDebug() << "[GameSession] 在线游戏结束：" << msg;
+    emit sig_onlineGameOver(msg);
+    // 重置游戏
+    slot_resetGame();
 }

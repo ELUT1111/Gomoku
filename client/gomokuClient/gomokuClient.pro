@@ -1,4 +1,4 @@
-QT       += core gui
+QT       += core gui network websockets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -18,8 +18,10 @@ SOURCES += \
     humanplayer.cpp \
     main.cpp \
     mainwindow.cpp \
+    networkmanager.cpp \
     offlinechoicewidget.cpp \
     onlinechoicewidget.cpp \
+    onlineplayer.cpp \
     onlineroomwidget.cpp \
     pagemanager.cpp \
     startwidget.cpp
@@ -34,8 +36,10 @@ HEADERS += \
     gamewidget.h \
     humanplayer.h \
     mainwindow.h \
+    networkmanager.h \
     offlinechoicewidget.h \
     onlinechoicewidget.h \
+    onlineplayer.h \
     onlineroomwidget.h \
     pagemanager.h \
     startwidget.h
