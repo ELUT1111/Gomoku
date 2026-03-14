@@ -1,4 +1,4 @@
 # Gomuku|经典五子棋游戏
-Qt：客户端
+客户端：Qt widget
 
-spring boot：在线模式后端
+服务端(websocket)：spring boot
