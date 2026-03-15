@@ -31,7 +31,6 @@
     QFrame#cardHost, QFrame#cardOpponent {
      background-color: white;
      border-radius: 10px;
-     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
      border: 1px solid #EEEEEE;
     }
     /* 卡片标题 */
@@ -119,7 +118,7 @@
          </font>
         </property>
         <property name="text">
-         <string>886699</string>
+         <string>Null</string>
         </property>
        </widget>
       </item>
@@ -322,7 +321,7 @@
      <item>
       <widget class="QPushButton" name="btnStartGame">
        <property name="enabled">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
        <property name="text">
         <string>开始游戏</string>

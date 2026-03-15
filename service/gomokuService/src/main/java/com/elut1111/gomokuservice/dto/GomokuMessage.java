@@ -4,14 +4,15 @@ import lombok.Data;
 
 /**
  * 五子棋通信消息体（前后端统一JSON格式）
- * 保留原有所有字段，仅新增currentPlayer字段用于当前玩家通知
  */
 @Data
 public class GomokuMessage {
     /**
-     * 消息类型：与原有一致
+     * 消息类型：
      * CREATE_ROOM - 创建房间
      * JOIN_ROOM   - 加入房间
+     * PLAYER_READY - 玩家准备
+     * START_GAME  - 开始游戏
      * CHESS_MOVE  - 落子
      * ROOM_INFO   - 房间信息推送
      * GAME_OVER   - 游戏结束

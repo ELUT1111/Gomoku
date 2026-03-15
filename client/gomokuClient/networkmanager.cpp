@@ -56,15 +56,6 @@ void NetworkManager::sendMatchRequest() {
     m_socket.sendTextMessage(QJsonDocument(obj).toJson());
 }
 
-void NetworkManager::sendMove(int x, int y, int color) {
-    QJsonObject obj;
-    obj["type"] = "MOVE";
-    obj["x"] = x;
-    obj["y"] = y;
-    obj["color"] = color;
-    m_socket.sendTextMessage(QJsonDocument(obj).toJson());
-}
-
 void NetworkManager::onTextMessageReceived(QString message) {
     qDebug() << "[Network] 收到服务端消息：" << message;
     QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
@@ -80,7 +71,13 @@ void NetworkManager::onTextMessageReceived(QString message) {
         QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();
         emit sig_roomInfoReceived(roomId, player, msg);
-    } else if (type == "CHESS_MOVE") {
+    }else if (type == "PLAYER_READY") {
+        QString msg = obj["msg"].toString();
+        emit sig_playerReadyReceived(true, msg);
+    }else if (type == "GAME_START") {
+        QString msg = obj["msg"].toString();
+        emit sig_gameStartReceived(msg);
+    }else if (type == "CHESS_MOVE") {
         int x = obj["x"].toInt();
         int y = obj["y"].toInt();
         int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
@@ -106,4 +103,14 @@ QByteArray NetworkManager::serializeMsg(const QString& type, const QString& room
     }
     if(!msg.isEmpty()) obj["msg"] = msg;
     return QJsonDocument(obj).toJson(QJsonDocument::Compact);
+}
+
+void NetworkManager::sendReadyRequest() {
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("PLAYER_READY"));
+}
+
+void NetworkManager::sendStartGameRequest() {
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("START_GAME"));
 }

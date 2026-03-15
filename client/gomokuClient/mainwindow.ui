@@ -13,7 +13,6 @@
   <property name="windowTitle">
    <string>五子棋Gomoku</string>
   </property>
-  <!-- 全局样式：统一风格+美观边框+拓展性优化 -->
   <property name="styleSheet">
    <string notr="true">
     /* 主窗口全局样式 */
@@ -29,7 +28,6 @@
     QWidget#centralwidget {
      background-color: white;
      border-radius: 12px;
-     box-shadow: 0 3px 15px rgba(0,0,0,0.08);
      padding: 5px;
     }
     /* 页面切换容器：QStackedWidget 优化 */
@@ -87,22 +85,15 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <property name="spacing">
-     <number>0</number> <!-- 去除布局间距，避免多余空白 -->
-    </property>
-    <property name="contentsMargins">
-     <set>8 8 8 8</set> <!-- 预留内边距，方便拓展 -->
+     <number>0</number>
     </property>
     <item>
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
        <number>3</number>
       </property>
-      <!-- 保留所有原有页面，组件名不变 -->
       <widget class="QWidget" name="startPage">
        <layout class="QVBoxLayout" name="verticalLayout_3">
-        <property name="contentsMargins">
-         <set>0 0 0 0</set>
-        </property>
         <item>
          <layout class="QVBoxLayout" name="startLayout"/>
         </item>
@@ -110,9 +101,6 @@
       </widget>
       <widget class="QWidget" name="offlineChoicePage">
        <layout class="QVBoxLayout" name="verticalLayout_4">
-        <property name="contentsMargins">
-         <set>0 0 0 0</set>
-        </property>
         <item>
          <layout class="QVBoxLayout" name="offlineChoiceLayout"/>
         </item>
@@ -120,9 +108,6 @@
       </widget>
       <widget class="QWidget" name="onlineChoicePage">
        <layout class="QVBoxLayout" name="verticalLayout_7">
-        <property name="contentsMargins">
-         <set>0 0 0 0</set>
-        </property>
         <item>
          <layout class="QVBoxLayout" name="onlineChoiceLayout"/>
         </item>
@@ -130,9 +115,6 @@
       </widget>
       <widget class="QWidget" name="onlineRoomPage">
        <layout class="QVBoxLayout" name="verticalLayout_8">
-        <property name="contentsMargins">
-         <set>0 0 0 0</set>
-        </property>
         <item>
          <layout class="QVBoxLayout" name="onlineRoomLayout"/>
         </item>
@@ -140,23 +122,14 @@
       </widget>
       <widget class="QWidget" name="gamePage">
        <layout class="QVBoxLayout" name="verticalLayout_5">
-        <property name="contentsMargins">
-         <set>0 0 0 0</set>
-        </property>
         <item>
          <layout class="QVBoxLayout" name="gameLayout_all" stretch="20,1">
           <property name="spacing">
            <number>0</number>
           </property>
-          <property name="contentsMargins">
-           <set>0 0 0 0</set>
-          </property>
           <item>
            <widget class="QWidget" name="widget" native="true">
             <layout class="QVBoxLayout" name="verticalLayout_6">
-             <property name="contentsMargins">
-              <set>0 0 0 0</set>
-             </property>
              <item>
               <layout class="QVBoxLayout" name="gameLayout_main"/>
              </item>
@@ -169,22 +142,16 @@
              <property name="spacing">
               <number>0</number>
              </property>
-             <property name="contentsMargins">
-              <set>0 0 0 0</set>
-             </property>
              <item>
               <layout class="QHBoxLayout" name="gameLayout_bar">
                <property name="spacing">
                 <number>0</number>
                </property>
-               <property name="contentsMargins">
-                <set>0 0 0 0</set>
-               </property>
                <item>
                 <widget class="QPushButton" name="undoButton">
                  <property name="font">
                   <font>
-                   <pointsize>11</pointsize>
+                   <pointsize>-1</pointsize>
                   </font>
                  </property>
                  <property name="text">
@@ -196,7 +163,7 @@
                 <widget class="QPushButton" name="resetButton">
                  <property name="font">
                   <font>
-                   <pointsize>11</pointsize>
+                   <pointsize>-1</pointsize>
                   </font>
                  </property>
                  <property name="text">
@@ -208,7 +175,7 @@
                 <widget class="QPushButton" name="backButton">
                  <property name="font">
                   <font>
-                   <pointsize>11</pointsize>
+                   <pointsize>-1</pointsize>
                   </font>
                  </property>
                  <property name="text">
@@ -235,16 +202,15 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>25</height>
+     <height>21</height>
     </rect>
    </property>
-   <!-- 菜单栏样式优化（可选拓展） -->
    <property name="styleSheet">
     <string notr="true">
      QMenuBar {
       background-color: #4A6CF7;
       color: white;
-      font-family: "Microsoft YaHei";
+      font-family: &quot;Microsoft YaHei&quot;;
      }
      QMenuBar::item {
       padding: 0 15px;
@@ -257,13 +223,12 @@
    </property>
   </widget>
   <widget class="QStatusBar" name="statusbar">
-   <!-- 状态栏样式优化（可选拓展） -->
    <property name="styleSheet">
     <string notr="true">
      QStatusBar {
       background-color: #F5F7FA;
       color: #666666;
-      font-family: "Microsoft YaHei";
+      font-family: &quot;Microsoft YaHei&quot;;
       border-top: 1px solid #EEEEEE;
      }
     </string>

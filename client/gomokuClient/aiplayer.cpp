@@ -1,6 +1,4 @@
 #include "aiplayer.h"
-#include "gamesession.h"
-#include "qdebug.h"
 #include "qpoint.h"
 #include <QList>
 

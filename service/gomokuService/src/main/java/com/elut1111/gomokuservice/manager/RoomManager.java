@@ -10,22 +10,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 房间管理器（内存存储，后续可扩展Redis持久化）
- * 保留原有方法名，仅拓展功能，完全兼容现有调用
  */
 @Component
 public class RoomManager {
-    // 房间映射：key=roomId，value=Room实体（替换原有数组存储）
+    // 房间映射：key=roomId，value=Room实体
     private static final Map<String, Room> ROOM_MAP = new ConcurrentHashMap<>();
-    // 会话-房间映射：key=sessionId，value=roomId（快速查询玩家所在房间）
+    // 会话-房间映射：key=sessionId，value=roomId
     private static final Map<String, String> SESSION_ROOM_MAP = new ConcurrentHashMap<>();
 
     /**
-     * 创建房间（保留原有方法名，返回8位短ID）
+     * 创建房间（返回8位短ID）
      */
     public String createRoom(WebSocketSession creator) {
         Room room = new Room();
         // 创建者为黑棋玩家
         Player blackPlayer = new Player("BLACK", creator);
+        blackPlayer.setReady(true);
         room.setBlackPlayer(blackPlayer);
         // 存入房间映射
         ROOM_MAP.put(room.getRoomId(), room);
@@ -35,7 +35,7 @@ public class RoomManager {
     }
 
     /**
-     * 加入房间（保留原有方法名）
+     * 加入房间
      */
     public void joinRoom(String roomId, WebSocketSession joiner) {
         Room room = ROOM_MAP.get(roomId);
@@ -52,7 +52,7 @@ public class RoomManager {
     }
 
     /**
-     * 判断房间是否存在（保留原有方法名）
+     * 判断房间是否存在
      */
     public boolean existsRoom(String roomId) {
         Room room = ROOM_MAP.get(roomId);
@@ -60,7 +60,7 @@ public class RoomManager {
     }
 
     /**
-     * 判断房间是否已满（保留原有方法名）
+     * 判断房间是否已满
      */
     public boolean isRoomFull(String roomId) {
         Room room = ROOM_MAP.get(roomId);
@@ -68,7 +68,7 @@ public class RoomManager {
     }
 
     /**
-     * 获取房间内的对手会话（保留原有方法名）
+     * 获取房间内的对手会话
      */
     public WebSocketSession getOpponent(String roomId, WebSocketSession currentSession) {
         Room room = ROOM_MAP.get(roomId);
@@ -81,7 +81,7 @@ public class RoomManager {
     }
 
     /**
-     * 判断会话是否在指定房间内（保留原有方法名）
+     * 判断会话是否在指定房间内
      */
     public boolean isInRoom(String roomId, WebSocketSession session) {
         Room room = ROOM_MAP.get(roomId);
@@ -89,7 +89,7 @@ public class RoomManager {
     }
 
     /**
-     * 移除断开连接的会话，清理房间（保留原有方法名，完善逻辑）
+     * 移除断开连接的会话，清理房间
      */
     public void removeSession(WebSocketSession session) {
         String sessionId = session.getId();
@@ -117,7 +117,7 @@ public class RoomManager {
     }
 
     /**
-     * 销毁房间（保留原有方法名，完善逻辑）
+     * 销毁房间
      */
     public void destroyRoom(String roomId) {
         Room room = ROOM_MAP.get(roomId);
@@ -130,7 +130,6 @@ public class RoomManager {
         SESSION_ROOM_MAP.entrySet().removeIf(entry -> entry.getValue().equals(roomId));
     }
 
-    // ---------------------- 新增拓展方法（无原有方法冲突） ----------------------
     /**
      * 根据房间ID获取房间实体
      */

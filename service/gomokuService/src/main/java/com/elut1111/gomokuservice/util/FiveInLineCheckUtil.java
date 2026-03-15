@@ -7,11 +7,11 @@ import com.elut1111.gomokuservice.entity.ChessBoard;
  */
 public class FiveInLineCheckUtil {
     /**
-     * 连珠胜利数（五子棋=5）
+     * 连珠胜利数
      */
     private static final int WIN_COUNT = 5;
     /**
-     * 四个检测方向：右、下、右下、右上（与前端DIRS数组前4个方向一致）
+     * 四个检测方向：右、下、右下、右上
      */
     private static final int[][] DIRS = {{0, 1}, {1, 0}, {1, 1}, {-1, 1}};
 

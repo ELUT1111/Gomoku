@@ -59,14 +59,19 @@ void GameSession::initPlayer()
     {
         m_onlineBlackPlayer = new OnlinePlayer(this, ChessType::BLACK);
         m_onlineWhitePlayer = new OnlinePlayer(this, ChessType::WHITE);
-        player1 = m_onlineBlackPlayer; // 与离线模式统一player1/player2，不修改原有逻辑
+        player1 = m_onlineBlackPlayer; // 与离线模式统一player1/player2
         player2 = m_onlineWhitePlayer;
         // 绑定网络层的对手落子信号→在线玩家处理
         NetworkManager& netMgr = NetworkManager::instance();
         connect(&netMgr, &NetworkManager::moveReceived, this, &GameSession::slot_handleOpponentMove);
         // 绑定网络层的游戏结束信号→会话处理
         connect(&netMgr, &NetworkManager::sig_gameOverReceived, this, &GameSession::slot_handleOnlineGameOver);
+
         // 绑定网络层的错误信号→会话转发
+        // connect(&netMgr, &NetworkManager::sig_playerReadyReceived, this, [this](QString msg){
+        //     qDebug()<<"222";
+        //     emit sig_playerReadyChanged(true,msg);
+        // });
         connect(&netMgr, &NetworkManager::sig_errorReceived, this, [this](QString msg){
             emit sig_onlineError(msg);
         });

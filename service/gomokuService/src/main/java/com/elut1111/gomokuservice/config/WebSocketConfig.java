@@ -10,19 +10,19 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 import org.springframework.context.annotation.Bean;
 
 /**
- * WebSocket核心配置（少量优化，保留原有核心逻辑）
+ * WebSocket核心配置
  */
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
     @Resource
-    private GomokuWebSocketHandler gomokuWebSocketHandler; // 修正原有变量名（gobang→gomoku，与项目名一致）
+    private GomokuWebSocketHandler gomokuWebSocketHandler; // 修正原有变量名
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // 注册WebSocket端点，兼容Qt客户端（保留原有）
+        // 注册WebSocket端点，兼容Qt客户端
         registry.addHandler(gomokuWebSocketHandler, "/gomoku/ws")
-                .setAllowedOriginPatterns("*"); // 替代setAllowedOrigins，Spring Boot 2.4+推荐，更严谨
+                .setAllowedOriginPatterns("*");
     }
 
     /**

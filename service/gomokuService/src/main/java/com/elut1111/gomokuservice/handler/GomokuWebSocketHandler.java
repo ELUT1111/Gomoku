@@ -20,21 +20,20 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 五子棋WebSocket业务处理器
- * 保留原有方法名，完善核心逻辑，补充边界校验和异常捕获
  */
 @Slf4j
 @Component
 public class GomokuWebSocketHandler extends TextWebSocketHandler {
-    // 在线会话缓存（保留原有）
+    // 在线会话缓存
     private static final Map<String, WebSocketSession> ONLINE_SESSIONS = new ConcurrentHashMap<>();
-    // JSON解析器（保留原有）
+    // JSON解析器
     private final ObjectMapper objectMapper = new ObjectMapper();
-    // 注入房间管理器（保留原有）
+    // 注入房间管理器
     @Resource
     private RoomManager roomManager;
 
     /**
-     * 客户端连接成功（保留原有，补充日志）
+     * 客户端连接成功
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -43,22 +42,24 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 处理客户端发送的消息（保留原有，补充异常捕获）
+     * 处理客户端发送的消息
      */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         try {
-            // 解析客户端JSON消息（保留原有）
+            // 解析客户端JSON消息
             String payload = message.getPayload();
             GomokuMessage gomokuMsg = objectMapper.readValue(payload, GomokuMessage.class);
             gomokuMsg.setSessionId(session.getId()); // 绑定会话ID（保留原有）
             log.info("接收客户端消息：{}，会话ID：{}", payload, session.getId());
 
-            // 根据消息类型分发处理（保留原有，补充DEFAULT日志）
+            // 根据消息类型分发处理
             switch (gomokuMsg.getType()) {
                 case "CREATE_ROOM" -> handleCreateRoom(session, gomokuMsg);
                 case "JOIN_ROOM" -> handleJoinRoom(session, gomokuMsg);
                 case "CHESS_MOVE" -> handleChessMove(session, gomokuMsg);
+                case "PLAYER_READY" -> handlePlayerReady(session, gomokuMsg);
+                case "START_GAME" -> handleStartGame(session, gomokuMsg);
                 default -> {
                     log.warn("未知消息类型：{}，会话ID：{}", gomokuMsg.getType(), session.getId());
                     sendErrorMsg(session, "未知消息类型：" + gomokuMsg.getType());
@@ -71,13 +72,13 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 客户端断开连接（保留原有，补充日志和在线数更新）
+     * 客户端断开连接
      */
     @Override
     public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) throws Exception {
         String sessionId = session.getId();
         ONLINE_SESSIONS.remove(sessionId);
-        roomManager.removeSession(session); // 清理房间关联（保留原有）
+        roomManager.removeSession(session); // 清理房间关联
         log.info("客户端断开连接，会话ID：{}，当前在线数：{}", sessionId, ONLINE_SESSIONS.size());
 
         // 通知对手：玩家掉线
@@ -93,9 +94,8 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    // ------------------------ 原有业务方法完善（保留方法名） ------------------------
     /**
-     * 处理创建房间（保留方法名，完善返回消息）
+     * 处理创建房间
      */
     private void handleCreateRoom(WebSocketSession session, GomokuMessage msg) {
         try {
@@ -104,14 +104,14 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 sendErrorMsg(session, "你已创建/加入房间，不可重复创建");
                 return;
             }
-            String roomId = roomManager.createRoom(session); // 调用原有方法
-            // 构建响应消息（保留原有字段，与前端协议一致）
+            String roomId = roomManager.createRoom(session);
+            // 构建响应消息
             GomokuMessage resp = new GomokuMessage();
             resp.setType("ROOM_INFO");
             resp.setRoomId(roomId);
-            resp.setPlayer("BLACK"); // 创建者默认执黑（保留原有）
+            resp.setPlayer("BLACK"); // 创建者默认执黑
             resp.setMsg("房间创建成功，ID：" + roomId + "，等待对手加入");
-            // 发送给创建者（保留原有）
+            // 发送给创建者
             sendMsgToSession(session, resp);
             log.info("[服务端] 房间创建成功，ID：{}", roomId);
         } catch (Exception e) {
@@ -121,7 +121,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 处理加入房间（保留方法名，补充房间状态校验）
+     * 处理加入房间
      */
     private void handleJoinRoom(WebSocketSession session, GomokuMessage msg) {
         try {
@@ -136,27 +136,27 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 sendErrorMsg(session, "你已创建/加入房间，不可重复加入");
                 return;
             }
-            // 校验房间是否存在（调用原有方法）
+            // 校验房间是否存在
             if (!roomManager.existsRoom(roomId)) {
                 sendErrorMsg(session, "房间不存在：" + roomId);
                 return;
             }
-            // 校验房间是否已满（调用原有方法）
+            // 校验房间是否已满
             if (roomManager.isRoomFull(roomId)) {
                 sendErrorMsg(session, "房间" + roomId + "已满，无法加入");
                 return;
             }
-            // 加入房间（调用原有方法）
+            // 加入房间
             roomManager.joinRoom(roomId, session);
             GomokuMessage resp = new GomokuMessage();
             resp.setType("ROOM_INFO");
             resp.setRoomId(roomId);
-            resp.setPlayer("WHITE"); // 加入者执白（保留原有）
+            resp.setPlayer("WHITE"); // 加入者执白
             resp.setMsg("成功加入房间：" + roomId + "，游戏开始！黑棋先行");
-            // 发送给加入者（保留原有）
+            // 发送给加入者
             sendMsgToSession(session, resp);
 
-            // 通知房间内的黑棋玩家（对手已加入）（保留原有逻辑，完善消息）
+            // 通知房间内的黑棋玩家（对手已加入）
             WebSocketSession blackPlayer = roomManager.getOpponent(roomId, session);
             if (blackPlayer != null && blackPlayer.isOpen()) {
                 GomokuMessage blackMsg = new GomokuMessage();
@@ -172,7 +172,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 处理落子，同步给对手（核心完善，实现五子连珠判断、落子校验）
+     * 处理落子，同步给对手（实现五子连珠判断、落子校验）
      */
     private void handleChessMove(WebSocketSession session, GomokuMessage msg) {
         try {
@@ -186,7 +186,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 sendErrorMsg(session, "落子参数不完整");
                 return;
             }
-            // 2. 校验是否在房间内（调用原有方法）
+            // 2. 校验是否在房间内
             if (!roomManager.isInRoom(roomId, session)) {
                 sendErrorMsg(session, "你未加入房间：" + roomId);
                 return;
@@ -216,13 +216,13 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            // 7. 同步落子消息给对手（保留原有逻辑）
+            // 7. 同步落子消息给对手
             WebSocketSession opponent = roomManager.getOpponent(roomId, session);
             if (opponent != null && opponent.isOpen()) {
                 sendMsgToSession(opponent, msg);
             }
 
-            // 8. 五子连珠胜负判断（替换原有空实现）
+            // 8. 五子连珠胜负判断
             boolean isWin = FiveInLineCheckUtil.checkFiveInLine(x, y, playerColor, chessBoard);
             if (isWin) {
                 GomokuMessage winMsg = new GomokuMessage();
@@ -234,7 +234,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 if (opponent != null && opponent.isOpen()) {
                     sendMsgToSession(opponent, winMsg);
                 }
-                // 销毁房间（调用原有方法）
+                // 销毁房间
                 roomManager.destroyRoom(roomId);
                 return;
             }
@@ -262,7 +262,6 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    // ------------------------ 工具方法完善（保留方法名，增加异常捕获） ------------------------
     /**
      * 发送消息给指定会话（保留方法名，增加IO异常捕获）
      */
@@ -279,12 +278,82 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 发送错误消息（保留方法名，完善实现）
+     * 发送错误消息
      */
     private void sendErrorMsg(WebSocketSession session, String errorMsg) {
         GomokuMessage msg = new GomokuMessage();
         msg.setType("ERROR");
         msg.setMsg(errorMsg);
         sendMsgToSession(session, msg);
+    }
+
+    /**
+     * 处理玩家点击准备
+     */
+    private void handlePlayerReady(WebSocketSession session, GomokuMessage msg) {
+        String roomId = roomManager.getRoomIdBySessionId(session.getId());
+        if (roomId == null) return;
+        Room room = roomManager.getRoomByRoomId(roomId);
+        Player player = roomManager.getPlayerBySession(room, session);
+        if (player != null) {
+            player.setReady(true);
+
+            // 通知房主（对手已准备）
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                GomokuMessage notify = new GomokuMessage();
+                notify.setType("ROOM_INFO");
+                notify.setRoomId(roomId);
+                notify.setPlayer("OPPONENT_READY");
+                notify.setMsg("对手已准备，可以开始游戏！");
+                sendMsgToSession(opponent, notify);
+
+                GomokuMessage notify2 = new GomokuMessage();
+                notify2.setType("PLAYER_READY");
+                notify2.setRoomId(roomId);
+                notify2.setPlayer("OPPONENT_READY");
+                notify2.setMsg("启用开始游戏按钮！");
+                sendMsgToSession(opponent, notify2);
+            }
+
+            // 通知自己
+            GomokuMessage selfMsg = new GomokuMessage();
+            selfMsg.setType("ROOM_INFO");
+            selfMsg.setRoomId(roomId);
+            selfMsg.setPlayer("SELF_READY");
+            selfMsg.setMsg("已准备，等待房主开始游戏");
+            sendMsgToSession(session, selfMsg);
+        }
+    }
+
+    /**
+     * 处理房主开始游戏
+     */
+    private void handleStartGame(WebSocketSession session, GomokuMessage msg) {
+        String roomId = roomManager.getRoomIdBySessionId(session.getId());
+        if (roomId == null) return;
+        Room room = roomManager.getRoomByRoomId(roomId);
+        Player player = roomManager.getPlayerBySession(room, session);
+
+        if (player == null || !"BLACK".equals(player.getColor())) {
+            sendErrorMsg(session, "只有房主可以开始游戏");
+            return;
+        }
+        if (!room.isAllReady()) {
+            sendErrorMsg(session, "有玩家未准备，无法开始");
+            return;
+        }
+
+        room.setStatus(Room.RoomStatus.PLAYING);
+        GomokuMessage startMsg = new GomokuMessage();
+        startMsg.setType("GAME_START");
+        startMsg.setRoomId(roomId);
+        startMsg.setMsg("游戏开始！黑棋先行");
+
+        sendMsgToSession(session, startMsg);
+        WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+        if (opponent != null && opponent.isOpen()) {
+            sendMsgToSession(opponent, startMsg);
+        }
     }
 }

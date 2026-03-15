@@ -8,11 +8,11 @@ import lombok.Data;
 @Data
 public class ChessBoard {
     /**
-     * 棋盘大小：与前端SharedType.h中BOARD_SIZE=15保持一致
+     * 棋盘大小
      */
     public static final int BOARD_SIZE = 15;
     /**
-     * 棋盘状态：0-空，1-黑棋，2-白棋（与前端ChessType枚举值一致）
+     * 棋盘状态：0-空，1-黑棋，2-白棋
      */
     private int[][] board;
     /**

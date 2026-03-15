@@ -1,0 +1,4961 @@
+项目代码汇总报告
+生成时间: 2026-03-15 22:09:45.214213
+==================================================
+
+
+--- FILE START: README.md ---
+# Gomuku|经典五子棋游戏
+客户端：Qt widget
+
+服务端(websocket)：spring boot
+
+--- FILE END: README.md ---
+==============================
+
+--- FILE START: client\gomokuClient\abstractplayer.cpp ---
+#include "abstractplayer.h"
+
+#include <qDebug>
+AbstractPlayer::AbstractPlayer(QObject *parent, ChessType chessType)
+    : QObject{parent}, myChessType(chessType)
+{}
+
+ChessType AbstractPlayer::getMyChessType() const
+{
+    return myChessType;
+}
+
+void AbstractPlayer::setMyChessType(ChessType newMyChessType)
+{
+    myChessType = newMyChessType;
+}
+
+void AbstractPlayer::slot_onMouseClicked(int x, int y)
+{
+    return;
+}
+
+void AbstractPlayer::slot_myTurn()
+{
+    return;
+}
+
+--- FILE END: client\gomokuClient\abstractplayer.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\abstractplayer.h ---
+#ifndef ABSTRACTPLAYER_H
+#define ABSTRACTPLAYER_H
+
+#include <SharedType.h>
+#include <QObject>
+
+class AbstractPlayer : public QObject
+{
+    Q_OBJECT
+public:
+    explicit AbstractPlayer(QObject *parent = nullptr, ChessType chessType = ChessType::BLACK);
+    ChessType getMyChessType() const;
+    void setMyChessType(ChessType newMyChessType);
+
+protected:
+    ChessType myChessType;
+signals:
+    void signal_tryPlaceChess(int x,int y,ChessType chessType);
+public slots:
+    virtual void slot_onMouseClicked(int x,int y);
+    virtual void slot_myTurn();
+
+};
+
+#endif // ABSTRACTPLAYER_H
+
+--- FILE END: client\gomokuClient\abstractplayer.h ---
+==============================
+
+--- FILE START: client\gomokuClient\aiplayer.cpp ---
+#include "aiplayer.h"
+#include "qpoint.h"
+#include <QList>
+
+#include <QRandomGenerator>
+
+AIPlayer::AIPlayer(QObject *parent, ChessType chessType, AIType difficulty)
+    : AbstractPlayer{parent, chessType}, difficulty(difficulty)
+{
+    // 1. 创建线程和 worker
+    aiThread = new QThread(this);
+    thinkWorker = new AIThinkWorker(nullptr, chessType, difficulty);
+    thinkWorker->moveToThread(aiThread);
+
+    // 2. 连接信号槽（线程安全）
+    connect(aiThread, &QThread::finished, thinkWorker, &QObject::deleteLater);
+    connect(this, &AIPlayer::startThinking, thinkWorker, &AIThinkWorker::doThink);
+    connect(thinkWorker, &AIThinkWorker::thinkFinished, this, &AIPlayer::onThinkFinished);
+    connect(thinkWorker, &AIThinkWorker::thinkStarted, this, &AIPlayer::thinkStarted);
+
+    // 3. 启动线程（线程处于等待状态，仅收到信号时执行）
+    aiThread->start();
+}
+
+AIPlayer::~AIPlayer()
+{
+    cancelThinking();
+    aiThread->quit();
+    aiThread->wait(); // 等待线程安全退出
+}
+
+AIType AIPlayer::getDifficulty() const
+{
+    return difficulty;
+}
+
+void AIPlayer::setDifficulty(AIType newDifficulty)
+{
+    difficulty = newDifficulty;
+}
+
+void AIPlayer::startThinking_func()
+{
+    if (isThinking) return;
+    isThinking = true;
+    emit startThinking(); // 触发 worker 执行思考
+}
+
+void AIPlayer::cancelThinking()
+{
+    isThinking = false;
+}
+
+void AIPlayer::slot_onMouseClicked(int x, int y)
+{
+    return;
+}
+
+void AIPlayer::slot_myTurn()
+{
+    startThinking();
+}
+
+void AIPlayer::onThinkFinished(QPoint pos)
+{
+    isThinking = false;
+    emit thinkFinished(); // 通知 UI 思考完成
+    if (pos.x() >= 0 && pos.y() >= 0) {
+        emit signal_tryPlaceChess(pos.x(), pos.y(), myChessType); // 落子
+    }
+}
+
+--- FILE END: client\gomokuClient\aiplayer.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\aiplayer.h ---
+#ifndef AIPLAYER_H
+#define AIPLAYER_H
+
+#include "abstractplayer.h"
+#include <QPoint>
+#include <QList>
+#include <QThread>
+#include <AIThinkWorker.h>
+
+class AIPlayer : public AbstractPlayer
+{
+    Q_OBJECT
+public:
+    explicit AIPlayer(QObject *parent = nullptr,ChessType chessType = ChessType::BLACK, AIType difficutify = AIType::EASY);
+    ~AIPlayer() override;
+    AIType getDifficulty() const;
+    void setDifficulty(AIType newDifficulty);
+
+    void startThinking_func();
+    void cancelThinking();
+
+protected:
+    AIType difficulty;
+    int isThinking = 0;
+
+    // 线程核心成员
+    QThread *aiThread;
+    AIThinkWorker *thinkWorker;
+
+public slots:
+    void slot_onMouseClicked(int x,int y) override;
+    void slot_myTurn() override;
+    void onThinkFinished(QPoint pos); // 接收 worker 的思考结果
+signals:
+    void startThinking(); // 触发 AI 思考的信号（给 worker）
+    void thinkStarted();  // AI 开始思考（给 UI）
+    void thinkFinished(); // AI 思考完成（给 UI）
+};
+
+#endif // AIPLAYER_H
+
+--- FILE END: client\gomokuClient\aiplayer.h ---
+==============================
+
+--- FILE START: client\gomokuClient\aithinkworker.cpp ---
+#include "aithinkworker.h"
+
+#include <GameSession.h>
+#include <QRandomGenerator>
+
+AIThinkWorker::AIThinkWorker(QObject *parent, ChessType chessType, AIType difficulty)
+    : QObject(parent), m_chessType(chessType), m_difficulty(difficulty)
+{}
+
+void AIThinkWorker::setDifficulty(AIType difficulty)
+{
+    m_difficulty = difficulty;
+}
+
+void AIThinkWorker::setChessType(ChessType chessType)
+{
+    m_chessType = chessType;
+}
+
+void AIThinkWorker::doThink()
+{
+    emit thinkStarted();
+    QPoint pos = nextPos();
+    emit thinkFinished(pos);
+}
+
+QPoint AIThinkWorker::nextPos()
+{
+    QPoint nextPoint;
+    if(m_difficulty == AIType::EASY)
+    {
+        nextPoint = nextPosForEasy();
+    }
+    else if(m_difficulty == AIType::NORMAL)
+    {
+        nextPoint = nextPosForNormal();
+    }
+    else
+    {
+        nextPoint = nextPosForHard();
+    }
+    return nextPoint;
+}
+
+QPoint AIThinkWorker::nextPosForEasy()
+{
+    // 基础进攻+防守
+    for(int i = 0;i < BOARD_SIZE;i++)
+    {
+        for(int j = 0;j< BOARD_SIZE;j++)
+        {
+            if(GameSession::instance()->boardData->isPosEmpty(i,j))
+            {
+                GameSession::instance()->boardData->setChess(i,j,m_chessType);
+                for(int k = 0;k < 4;k++)
+                {
+                    if(GameSession::instance()->boardData->numInRow(i,j,m_chessType,k)>=5)
+                    {
+                        // 可获胜的落子处
+                        GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+                        return QPoint(i,j);
+                    }
+                }
+                // GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+                GameSession::instance()->boardData->setChess(i,j,EnumUtils::oppo(m_chessType));
+                for(int k = 0;k < 4;k++)
+                {
+                    if(GameSession::instance()->boardData->numInRow(i,j,EnumUtils::oppo(m_chessType),k)>=5)
+                    {
+                        // 堵塞 >=4 的连子
+                        GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+                        return QPoint(i,j);
+                    }
+                }
+                GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+            }
+        }
+    }
+    // 二阶进攻
+    for(int i = 0;i < BOARD_SIZE;i++)
+    {
+        for(int j = 0;j< BOARD_SIZE;j++)
+        {
+            if(GameSession::instance()->boardData->isPosEmpty(i,j))
+            {
+                GameSession::instance()->boardData->setChess(i,j,m_chessType);
+                for(int k = 0;k < 4;k++)
+                {
+                    if(GameSession::instance()->boardData->numInRow(i,j,m_chessType,k)>=4)
+                    {
+                        // 可能导致获胜的落子处
+                        GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+                        return QPoint(i,j);
+                    }
+                }
+
+                GameSession::instance()->boardData->setChess(i,j,EnumUtils::oppo(m_chessType));
+                for(int k = 0;k < 4;k++)
+                {
+                    if(GameSession::instance()->boardData->numInRow(i,j,EnumUtils::oppo(m_chessType),k) >= 4)
+                    {
+                        // 堵塞 >=3 的连子
+                        GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+                        return QPoint(i,j);
+                    }
+                }
+                GameSession::instance()->boardData->setChess(i,j,ChessType::EMPTY);
+            }
+        }
+    }
+    return randomEmptyPos();
+}
+
+QPoint AIThinkWorker::nextPosForNormal()
+{
+    QPoint decision = minimaxDecision(2);
+    if(decision.x() < 0)
+        return randomEmptyPos();
+    return decision;
+}
+
+QPoint AIThinkWorker::nextPosForHard()
+{
+    QPoint decision = minimaxDecision(4);
+    if(decision.x() < 0)
+        return randomEmptyPos();
+    return decision;
+}
+
+QPoint AIThinkWorker::randomEmptyPos()
+{
+    QList<QPoint> emptyPos;
+    for(int i = 0;i < BOARD_SIZE; i++)
+    {
+        for(int j = 0;j < BOARD_SIZE;j++)
+        {
+            if(GameSession::instance()->boardData->getChess(i,j) == ChessType::EMPTY)
+            {
+                emptyPos.append(QPoint(i,j));
+            }
+        }
+    }
+    if(emptyPos.isEmpty()) return QPoint(-1,-1);
+    int idx = QRandomGenerator::global()->bounded(emptyPos.size());
+    //QPoint randomPoint = emptyPos.at(idx);
+    // qDebug()<<"[AIPlayer_EASY] 随机落子"<<randomPoint;
+    return emptyPos.at(idx);
+}
+
+QList<QPoint> AIThinkWorker::generateCandidateMoves() const
+{
+    QList<QPoint> moves;
+    auto bd = GameSession::instance()->boardData;
+    for(int i = 0; i < BOARD_SIZE; ++i) {
+        for(int j = 0; j < BOARD_SIZE; ++j) {
+            if(bd->isPosEmpty(i, j)) {
+                bool near = false;
+                for(int dx = -2; dx <= 2 && !near; ++dx) {
+                    for(int dy = -2; dy <= 2 && !near; ++dy) {
+                        if(dx == 0 && dy == 0) continue;
+                        int nx = i + dx;
+                        int ny = j + dy;
+                        if(nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE) continue;
+                        if(bd->getChess(nx, ny) != ChessType::EMPTY) {
+                            near = true;
+                        }
+                    }
+                }
+                if(near) moves.append(QPoint(i, j));
+            }
+        }
+    }
+    if(moves.isEmpty()) {
+        // every position is candidate
+        for(int i = 0; i < BOARD_SIZE; ++i)
+            for(int j = 0; j < BOARD_SIZE; ++j)
+                if(GameSession::instance()->boardData->isPosEmpty(i,j))
+                    moves.append(QPoint(i,j));
+    }
+    return moves;
+}
+
+int AIThinkWorker::evaluateBoard() const
+{
+    auto bd = GameSession::instance()->boardData;
+    // check immediate win/loss
+    for(int i = 0; i < BOARD_SIZE; ++i) {
+        for(int j = 0; j < BOARD_SIZE; ++j) {
+            ChessType t = bd->getChess(i, j);
+            if(t == ChessType::EMPTY) continue;
+            for(int dir = 0; dir < 4; ++dir) {
+                int len = bd->numInRow(i, j, t, dir);
+                if(len >= 5) {
+                    if(t == m_chessType)
+                        return INF;
+                    else
+                        return -INF;
+                }
+            }
+        }
+    }
+
+    int score = 0;
+    for(int i = 0; i < BOARD_SIZE; ++i) {
+        for(int j = 0; j < BOARD_SIZE; ++j) {
+            ChessType t = bd->getChess(i, j);
+            if(t == ChessType::EMPTY) continue;
+            for(int dir = 0; dir < 4; ++dir) {
+                int len = bd->numInRow(i, j, t, dir);
+                int value = len * len;
+                if(t == m_chessType)
+                    score += value;
+                else
+                    score -= value;
+            }
+        }
+    }
+    return score;
+}
+
+int AIThinkWorker::minimax(int depth, int alpha, int beta, ChessType currentPlayer)
+{
+    // terminal or depth limit
+    int eval = evaluateBoard();
+    if(depth == 0 || eval == INF || eval == -INF) {
+        return eval;
+    }
+
+    QList<QPoint> moves = generateCandidateMoves();
+    if(moves.isEmpty())
+        return 0;
+
+    if(currentPlayer == m_chessType) {
+        int maxEval = -INF;
+        for(const QPoint &mv : moves) {
+            GameSession::instance()->boardData->setChess(mv.x(), mv.y(), currentPlayer);
+            int score = minimax(depth - 1, alpha, beta, EnumUtils::oppo(currentPlayer));
+            GameSession::instance()->boardData->setChess(mv.x(), mv.y(), ChessType::EMPTY);
+            maxEval = qMax(maxEval, score);
+            alpha = qMax(alpha, score);
+            if(beta <= alpha)
+                break;
+        }
+        return maxEval;
+    } else {
+        int minEval = INF;
+        for(const QPoint &mv : moves) {
+            GameSession::instance()->boardData->setChess(mv.x(), mv.y(), currentPlayer);
+            int score = minimax(depth - 1, alpha, beta, EnumUtils::oppo(currentPlayer));
+            GameSession::instance()->boardData->setChess(mv.x(), mv.y(), ChessType::EMPTY);
+            minEval = qMin(minEval, score);
+            beta = qMin(beta, score);
+            if(beta <= alpha)
+                break;
+        }
+        return minEval;
+    }
+}
+
+QPoint AIThinkWorker::minimaxDecision(int depth)
+{
+    QList<QPoint> moves = generateCandidateMoves();
+    if(moves.isEmpty())
+        return QPoint(-1, -1);
+
+    QPoint bestMove(-1, -1);
+    int bestScore = -INF;
+    for(const QPoint &mv : moves) {
+        GameSession::instance()->boardData->setChess(mv.x(), mv.y(), m_chessType);
+        int score = minimax(depth - 1, -INF, INF, EnumUtils::oppo(m_chessType));
+        GameSession::instance()->boardData->setChess(mv.x(), mv.y(), ChessType::EMPTY);
+        if(score > bestScore) {
+            bestScore = score;
+            bestMove = mv;
+        }
+    }
+    return bestMove;
+}
+
+--- FILE END: client\gomokuClient\aithinkworker.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\aithinkworker.h ---
+#ifndef AITHINKWORKER_H
+#define AITHINKWORKER_H
+
+#include <QObject>
+#include <QPoint>
+#include "SharedType.h"
+
+class AIThinkWorker : public QObject
+{
+    Q_OBJECT
+public:
+    explicit AIThinkWorker(QObject *parent = nullptr,
+                           ChessType chessType = ChessType::WHITE,
+                           AIType difficulty = AIType::EASY);
+    void setDifficulty(AIType difficulty);
+    void setChessType(ChessType chessType);
+
+public slots:
+    void doThink(); // 执行思考的核心槽函数
+
+signals:
+    void thinkFinished(QPoint pos); // 思考完成，返回落子位置
+    void thinkStarted();            // 思考开始信号
+
+private:
+    // 思考逻辑
+    QPoint nextPos();
+    QPoint nextPosForEasy();
+    QPoint nextPosForNormal();
+    QPoint nextPosForHard();
+    QPoint randomEmptyPos();
+    QList<QPoint> generateCandidateMoves() const;
+    int evaluateBoard() const;
+    int minimax(int depth, int alpha, int beta, ChessType currentPlayer);
+    QPoint minimaxDecision(int depth);
+
+    ChessType m_chessType;
+    AIType m_difficulty;
+    static constexpr int INF = 1000000;
+};
+
+#endif // AITHINKWORKER_H
+
+--- FILE END: client\gomokuClient\aithinkworker.h ---
+==============================
+
+--- FILE START: client\gomokuClient\boarddata.cpp ---
+#include "boarddata.h"
+
+BoardData::BoardData(QObject *parent)
+    : QObject{parent}
+{
+    clear();
+}
+
+ChessType BoardData::getChess(int x, int y) const
+{
+    QReadLocker locker(&rwLock); // 读锁
+    if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) {
+        return ChessType::EMPTY;
+    }
+    return (ChessType)board[x][y];
+}
+
+void BoardData::getBoard(int newBoard[BOARD_SIZE][BOARD_SIZE]) const
+{
+    QReadLocker locker(&rwLock);
+    for (int x = 0; x < BOARD_SIZE; x++) {
+        for (int y = 0; y < BOARD_SIZE; y++) {
+            newBoard[x][y] = board[x][y];
+        }
+    }
+}
+
+bool BoardData::isPosValid(int x, int y) const
+{
+    QReadLocker locker(&rwLock);
+    return x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE;
+}
+
+bool BoardData::isPosEmpty(int x, int y) const
+{
+    return isPosValid(x, y) && getChess(x,y) == ChessType::EMPTY;
+}
+
+void BoardData::setChess(int x, int y, ChessType chessType)
+{
+    QWriteLocker locker(&rwLock); // 写锁
+    if (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+        board[x][y] = static_cast<int>(chessType);
+    }
+}
+int BoardData::numInRow(int x, int y, ChessType chessType, int dir)
+{
+    if(getChess(x,y) != chessType) return 0;
+    int num = 0;
+    int x1=x,y1=y;
+    while(isPosValid(x,y)&&getChess(x, y) == chessType)
+    {
+        num++;
+        x+=DIRS[dir][0];
+        y+=DIRS[dir][1];
+    }
+    x=x1 - DIRS[dir][0];
+    y=y1 - DIRS[dir][1];
+    while(isPosValid(x,y)&&getChess(x, y) == chessType)
+    {
+        num++;
+        x -= DIRS[dir][0];
+        y -= DIRS[dir][1];
+    }
+    return num;
+}
+void BoardData::clear()
+{
+    QWriteLocker locker(&rwLock);
+    memset(board, 0, sizeof(board));
+}
+
+int BoardData::getChessNumbers() const
+{
+    QReadLocker locker(&rwLock);
+    return chessNumbers;
+}
+
+void BoardData::setChessNumbers(int newChessNumbers)
+{
+    QWriteLocker locker(&rwLock);
+    chessNumbers = newChessNumbers;
+}
+
+--- FILE END: client\gomokuClient\boarddata.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\boarddata.h ---
+#ifndef BOARDDATA_H
+#define BOARDDATA_H
+
+#include <QObject>
+#include <SharedType.h>
+#include <QReadWriteLock>
+
+class BoardData : public QObject
+{
+    Q_OBJECT
+public:
+    explicit BoardData(QObject *parent = nullptr);
+
+    ChessType getChess(int x, int y) const;
+    // 批量复制棋盘
+    void getBoard(int newBoard[BOARD_SIZE][BOARD_SIZE]) const;
+    // 检查位置是否合法
+    bool isPosValid(int x, int y) const;
+    bool isPosEmpty(int x, int y) const;
+    // 某方向连子数量
+    int numInRow(int x,int y,ChessType chessType,int dir);
+
+    // 写接口
+    // 设置指定位置的棋子
+    void setChess(int x, int y, ChessType chessType);
+    // 清空棋盘
+    void clear();
+    // 获取棋子数量
+    int getChessNumbers() const;
+    void setChessNumbers(int newChessNumbers);
+
+private:
+    // 棋盘数组
+    int board[BOARD_SIZE][BOARD_SIZE] = {0};
+    // 多读单写锁
+    mutable QReadWriteLock rwLock;
+
+    int chessNumbers;
+signals:
+};
+
+using BoardDataPtr = QSharedPointer<BoardData>; // 棋盘数据指针
+
+#endif // BOARDDATA_H
+
+--- FILE END: client\gomokuClient\boarddata.h ---
+==============================
+
+--- FILE START: client\gomokuClient\gamesession.cpp ---
+#include "gamesession.h"
+#include <AIPlayer.h>
+#include <HumanPlayer.h>
+#include <qDebug>
+
+GameSession* GameSession::gameSession = nullptr;
+QMutex GameSession::mutex;
+
+GameSession::GameSession(QObject *parent)
+    : QObject{parent}
+{
+    initBoard();
+    // initPlayer();
+    // initConnect();
+}
+
+GameSession *GameSession::instance()
+{
+    if(!gameSession)
+    {
+        QMutexLocker locker(&mutex);
+        gameSession = new GameSession();
+        return gameSession;
+    }
+    return gameSession;
+}
+
+
+void GameSession::initBoard()
+{
+    boardData = QSharedPointer<BoardData>::create(this);
+    //board = QSharedPointer<BoardData>(new BoardData(this));
+}
+
+void GameSession::initPlayer()
+{
+    if(player1) delete player1;
+    if(player2) delete player2;
+    player1 = nullptr;
+    player2 = nullptr;
+    if(gamemode == GamemodeType::OFFLINE_FREE)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new HumanPlayer(this,ChessType::WHITE);
+    }else if(gamemode == GamemodeType::OFFLINE_AI_EASY)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new AIPlayer(this,ChessType::WHITE,AIType::EASY);
+    }else if(gamemode == GamemodeType::OFFLINE_AI_NORMAL)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new AIPlayer(this,ChessType::WHITE,AIType::NORMAL);
+    }else if(gamemode == GamemodeType::OFFLINE_AI_HARD)
+    {
+        player1 = new HumanPlayer(this,ChessType::BLACK);
+        player2 = new AIPlayer(this,ChessType::WHITE,AIType::HARD);
+    }
+    else if(gamemode == GamemodeType::ONLINE)
+    {
+        m_onlineBlackPlayer = new OnlinePlayer(this, ChessType::BLACK);
+        m_onlineWhitePlayer = new OnlinePlayer(this, ChessType::WHITE);
+        player1 = m_onlineBlackPlayer; // 与离线模式统一player1/player2，不修改原有逻辑
+        player2 = m_onlineWhitePlayer;
+        // 绑定网络层的对手落子信号→在线玩家处理
+        NetworkManager& netMgr = NetworkManager::instance();
+        connect(&netMgr, &NetworkManager::moveReceived, this, &GameSession::slot_handleOpponentMove);
+        // 绑定网络层的游戏结束信号→会话处理
+        connect(&netMgr, &NetworkManager::sig_gameOverReceived, this, &GameSession::slot_handleOnlineGameOver);
+
+        // 绑定网络层的错误信号→会话转发
+        connect(&netMgr, &NetworkManager::sig_playerReadyReceived, this, [this](QString msg){
+            qDebug()<<"222";
+            emit sig_playerReadyChanged(true,msg);
+        });
+        connect(&netMgr, &NetworkManager::sig_errorReceived, this, [this](QString msg){
+            emit sig_onlineError(msg);
+        });
+    }
+
+    currentPlayer = player1;
+    lastPlayer = player2;
+}
+
+void GameSession::initConnect()
+{
+    connect(player1,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
+    connect(player2,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
+}
+
+void GameSession::resetTurn()
+{
+    currentPlayer = player1;
+    lastPlayer = player2;
+    emit signal_switchTurn();
+}
+
+bool GameSession::checkWin(int x, int y, ChessType chessType)
+{
+    for(int i=0;i<4;i++)
+    {
+        //qDebug()<<boardData->numInRow(x,y,chessType,i);
+        if(boardData->numInRow(x,y,chessType,i)>=5)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool GameSession::isAIMode()
+{
+    return gamemode == GamemodeType::OFFLINE_AI_EASY ||
+           gamemode == GamemodeType::OFFLINE_AI_NORMAL ||
+           gamemode == GamemodeType::OFFLINE_AI_HARD;
+}
+
+void GameSession::slot_changeGamemode(GamemodeType gamemode)
+{
+    qDebug()<<"[session] 当前模式:"<<int(gamemode);
+    this->gamemode = gamemode;
+    initPlayer();
+    initConnect();
+    slot_resetGame();
+}
+
+void GameSession::slot_placeChess(int x, int y, ChessType chessType)
+{
+    qDebug()<<"[session] 落子: "<<x<<","<<y;
+    emit signal_drawChess(x, y ,chessType);
+    boardData->setChess(x, y, chessType);
+    chessHistory.append(ChessHistory(QPoint(x,y),currentPlayer));
+    if(checkWin(x,y,chessType))
+    {
+        qDebug()<<"[session] 游戏结算";
+        emit signal_playerWin(currentPlayer);
+    }
+    else
+    {
+        //交换回合
+        std::swap(currentPlayer,lastPlayer);
+        emit signal_switchTurn();
+    }
+}
+
+void GameSession::slot_resetGame()
+{
+    qDebug()<<"[session] 重置棋盘";
+    boardData->clear();
+    chessHistory.clear();
+    resetTurn();
+}
+
+void GameSession::slot_handleUndo()
+{
+    qDebug()<<"[session] 处理悔棋";
+    if(chessHistory.isEmpty()) return;
+    ChessHistory last = chessHistory.takeLast();
+    if(gamemode == GamemodeType::OFFLINE_FREE)
+    {
+        boardData->setChess(last.pos.x(),last.pos.y(),ChessType::EMPTY);
+        std::swap(currentPlayer,lastPlayer);
+        emit signal_switchTurn();
+    }
+    else if(gamemode == GamemodeType::OFFLINE_AI_EASY)
+    {
+        if(chessHistory.isEmpty()) return;
+        ChessHistory last2 = chessHistory.takeLast();
+        boardData->setChess(last.pos.x(),last.pos.y(),ChessType::EMPTY);
+        boardData->setChess(last2.pos.x(),last2.pos.y(),ChessType::EMPTY);
+    }
+
+}
+void GameSession::setOnlinePlayerTag(ChessType chessType, const QString& tag)
+{
+    if(chessType == ChessType::BLACK && m_onlineBlackPlayer)
+    {
+        m_onlineBlackPlayer->setOnlinePlayerTag(tag);
+    }else if(chessType == ChessType::WHITE && m_onlineWhitePlayer)
+    {
+        m_onlineWhitePlayer->setOnlinePlayerTag(tag);
+    }
+}
+
+// 获取在线玩家
+OnlinePlayer* GameSession::getOnlinePlayer(ChessType chessType)
+{
+    return (chessType == ChessType::BLACK) ? m_onlineBlackPlayer : m_onlineWhitePlayer;
+}
+
+// 处理对手落子→转发给在线玩家
+void GameSession::slot_handleOpponentMove(int x, int y, int color)
+{
+    if(gamemode != GamemodeType::ONLINE) return;
+    // 转发给在线玩家处理绘子
+    if(color == 1) // 对手黑方→己方白方处理
+    {
+        m_onlineWhitePlayer->slot_onOpponentMoveReceived(x, y, color);
+    }else // 对手白方→己方黑方处理
+    {
+        m_onlineBlackPlayer->slot_onOpponentMoveReceived(x, y, color);
+    }
+    // 交换回合
+    std::swap(currentPlayer, lastPlayer);
+    emit signal_switchTurn();
+}
+
+// 处理在线游戏结束
+void GameSession::slot_handleOnlineGameOver(QString msg)
+{
+    if(gamemode != GamemodeType::ONLINE) return;
+    qDebug() << "[GameSession] 在线游戏结束：" << msg;
+    emit sig_onlineGameOver(msg);
+    // 重置游戏
+    slot_resetGame();
+}
+
+--- FILE END: client\gomokuClient\gamesession.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\gamesession.h ---
+#ifndef GAMESESSION_H
+#define GAMESESSION_H
+
+#include "boarddata.h"
+#include <QObject>
+#include <QList>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QSharedPointer>
+#include <AbstractPlayer.h>
+#include "OnlinePlayer.h"
+#include <QPoint>
+
+struct ChessHistory
+{
+    int index; // 1-based
+    QPoint pos;
+    AbstractPlayer* player;
+
+    ChessHistory(QPoint pos,AbstractPlayer *player,int index = 0):
+        index(index),pos(pos),player(player)
+    {
+
+    }
+};
+
+class GameSession : public QObject
+{
+    /* 单例会话类，统一处理游戏逻辑 */
+    Q_OBJECT
+    static GameSession* gameSession;
+    static QMutex mutex;
+public:
+    explicit GameSession(QObject *parent = nullptr);
+
+    static GameSession* instance();
+
+    void initBoard();
+    void initPlayer();
+    void initConnect();
+    void resetTurn();
+
+    bool checkWin(int x,int y,ChessType chessType);
+    bool isAIMode();
+
+    void setOnlinePlayerTag(ChessType chessType, const QString& tag);
+    // 在线模式：获取当前在线玩家
+    OnlinePlayer* getOnlinePlayer(ChessType chessType);
+
+    BoardDataPtr getBoardData() const { return boardData; }
+public:
+    GamemodeType gamemode;
+    AbstractPlayer* player1;
+    AbstractPlayer* player2;
+    AbstractPlayer* currentPlayer; // 当前客户端真人玩家，接受UI的输入转发
+    AbstractPlayer* lastPlayer; // 离线自由练习模式下使用
+    OnlinePlayer* m_onlineBlackPlayer = nullptr; // 在线黑方
+    OnlinePlayer* m_onlineWhitePlayer = nullptr; // 在线白方
+    BoardDataPtr boardData;
+    QList<ChessHistory> chessHistory;
+
+
+signals:
+    void signal_drawChess(int x, int y, ChessType chessType);
+    void signal_switchTurn();
+    void signal_playerWin(AbstractPlayer* player);
+    void sig_onlineGameOver(QString msg); // 在线游戏结束
+    void sig_onlineError(QString msg);    // 在线错误提示
+    void sig_playerReadyChanged(bool currentState,QString msg);
+public slots:
+    void slot_changeGamemode(GamemodeType gamemode);
+    void slot_placeChess(int x,int y, ChessType chessType);
+    void slot_resetGame();
+    void slot_handleUndo();
+
+    void slot_handleOpponentMove(int x, int y, int color);
+    // 处理在线游戏结束
+    void slot_handleOnlineGameOver(QString msg);
+};
+
+#endif // GAMESESSION_H
+
+--- FILE END: client\gomokuClient\gamesession.h ---
+==============================
+
+--- FILE START: client\gomokuClient\gamewidget.cpp ---
+#include "AIPlayer.h"
+#include "PageManager.h"
+#include "gamewidget.h"
+#include "ui_gamewidget.h"
+
+#include <QVBoxLayout>
+#include <QMouseEvent>
+#include <QMessageBox>
+#include <HumanPlayer.h>
+#include <QMovie>
+
+GameWidget::GameWidget(QWidget *parent)
+    : QWidget(parent)
+    , ui(new Ui::GameWidget)
+    , session(nullptr)
+{
+    ui->setupUi(this);
+
+    initBoard();
+
+    initUI();
+
+    initConnect();
+
+}
+
+GameWidget::~GameWidget()
+{
+    delete ui;
+}
+
+void GameWidget::initBoard()
+{
+    boardData = GameSession::instance()->getBoardData();
+}
+
+void GameWidget::initUI()
+{
+    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding); // 随父容器扩展
+    this->setContentsMargins(0, 0, 0, 0); // 移除自身边距
+
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0,0,0,0);
+    setLayout(layout);
+
+    // 场景+视图
+    scene = new QGraphicsScene(this);
+    view = new QGraphicsView(scene, this);
+    view->setRenderHint(QPainter::SmoothPixmapTransform); // 平滑缩放
+    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setStyleSheet("background-color:green");
+    layout->addWidget(view);
+
+    // 加载棋盘图片
+    QPixmap boardPix(PATH_board);
+    boardItem = new QGraphicsPixmapItem(boardPix);
+    scene->addItem(boardItem);
+
+    // 1. 加载动画（GIF）
+    aiLoadingGif = new QLabel(this);
+    loadingMovie = new QMovie(":/pic/res/picture/loading.gif"); // 替换为你的 GIF 路径
+    aiLoadingGif->setMovie(loadingMovie);
+    aiLoadingGif->setFixedSize(100, 100); // 动画大小
+    aiLoadingGif->setAlignment(Qt::AlignCenter);
+    aiLoadingGif->setStyleSheet("background: transparent;");
+    aiLoadingGif->hide();
+
+    // 2. 文本提示
+    aiThinkingLabel = new QLabel("AI 正在思考...", this);
+    aiThinkingLabel->setStyleSheet("color: white; font-size: 16px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 8px;");
+    aiThinkingLabel->setAlignment(Qt::AlignCenter);
+    aiThinkingLabel->hide();
+
+    // 3. 叠加到棋盘视图上
+    aiLoadingGif->setParent(view);
+    aiThinkingLabel->setParent(view);
+
+    // 设置场景大小
+    scene->setSceneRect(boardItem->boundingRect());
+}
+
+void GameWidget::initConnect()
+{
+    // qDebug()<<"[gameWidget] 初始化连接";
+    connect(PageManager::instance(),&PageManager::signal_changeGamemode,this,&GameWidget::slot_changeGamemode,Qt::UniqueConnection);
+
+
+    // connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+    connect(GameSession::instance(),&GameSession::signal_drawChess,this,&GameWidget::slot_drawChess,Qt::UniqueConnection);
+    connect(GameSession::instance(),&GameSession::signal_switchTurn,this,&GameWidget::slot_switchTurn,Qt::UniqueConnection);
+    connect(GameSession::instance(),&GameSession::signal_playerWin,this,&GameWidget::slot_playerWin,Qt::UniqueConnection);
+
+    connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame,Qt::UniqueConnection);
+    connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo,Qt::UniqueConnection);
+    connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode,Qt::UniqueConnection);
+
+    // 新增：绑定在线游戏结束信号
+    connect(GameSession::instance(), &GameSession::sig_onlineGameOver, this, [this](QString msg){
+        QMessageBox::information(this, "游戏结束", msg);
+        slot_reset();
+    });
+    // 新增：绑定在线错误信号
+    connect(GameSession::instance(), &GameSession::sig_onlineError, this, [this](QString msg){
+        QMessageBox::warning(this, "在线错误", msg);
+    });
+    // 监听 AI 思考状态
+    connect(GameSession::instance(), &GameSession::signal_switchTurn, this, [this]() {
+        AIPlayer *ai = qobject_cast<AIPlayer*>(GameSession::instance()->currentPlayer);
+        if (ai) {
+            // 连接 AI 思考信号（避免重复连接）
+            disconnect(ai, &AIPlayer::thinkStarted, this, nullptr);
+            disconnect(ai, &AIPlayer::thinkFinished, this, nullptr);
+
+            connect(ai, &AIPlayer::thinkStarted, this, [this]() {
+                // AI 开始思考：显示动画 + 禁用棋盘点击
+                aiLoadingGif->show();
+                aiThinkingLabel->show();
+                loadingMovie->start();
+                view->setEnabled(false); // 禁用人类操作
+            });
+
+            connect(ai, &AIPlayer::thinkFinished, this, [this]() {
+                // AI 思考完成：隐藏动画 + 启用棋盘点击
+                aiLoadingGif->hide();
+                aiThinkingLabel->hide();
+                loadingMovie->stop();
+                view->setEnabled(true);
+            });
+        }
+    });
+
+}
+
+void GameWidget::drawChess(int x, int y, ChessType chessType)
+{
+    if(boardData->getChess(x,y) != ChessType::EMPTY) return;
+    qDebug()<<"[gameWidget] 绘子"<<x<<","<<y;
+
+    // TODO
+
+    // 加载棋子图片
+    QPixmap chess_pix = (chessType == ChessType::BLACK) ? QPixmap(PATH_blackChess) : QPixmap(PATH_whiteChess);
+    QGraphicsPixmapItem *chess_item = new QGraphicsPixmapItem(chess_pix);
+    scene->addItem(chess_item);
+
+    // 计算有效网格区域的尺寸和偏移
+    QRectF board_rect = boardItem->boundingRect();
+    qreal board_w = board_rect.width();
+    qreal board_h = board_rect.height();
+    qreal grid_left = board_w * BORDER_RATIO;
+    qreal grid_top = board_h * BORDER_RATIO;
+    qreal grid_w = board_w * (1 - 2 * BORDER_RATIO);
+    qreal grid_h = board_h * (1 - 2 * BORDER_RATIO);
+
+    // 计算第(x,y)个网格交点的场景坐标
+    qreal grid_step_x = grid_w / (BOARD_SIZE - 1); // 每个网格的宽度
+    qreal grid_step_y = grid_h / (BOARD_SIZE - 1); // 每个网格的高度
+    qreal chess_scene_x = grid_left + x * grid_step_x;
+    qreal chess_scene_y = grid_top + y * grid_step_y;
+
+    // 让棋子图片居中到网格交点
+    chess_item->setPos(
+        chess_scene_x - chess_pix.width() / 2,
+        chess_scene_y - chess_pix.height() / 2
+        );
+
+    chessItems.append(chess_item);
+}
+
+void GameWidget::undoForUI()
+{
+    /*悔棋*/
+    if(chessItems.isEmpty()) return;
+    auto last = chessItems.takeLast();
+    scene->removeItem(last);
+    delete last;
+    last = nullptr;
+    if(isAIMode())
+    {
+        if(chessItems.isEmpty()) return;
+        auto last = chessItems.takeLast();
+        scene->removeItem(last);
+        delete last;
+        last = nullptr;
+    }
+    else if(currentGamemode == GamemodeType::ONLINE)
+    {
+        QMessageBox::warning(this, "提示", "在线模式下不支持悔棋！");
+        return;
+    }
+    //QPoint lastGird = chessPoints.takeLast();
+    //board[lastGird.x()][lastGird.y()] = 0;
+    //std::swap(currentColor,nextColor);
+}
+
+void GameWidget::clearBoardForUI()
+{
+    if(currentGamemode == GamemodeType::ONLINE)
+    {
+        QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
+        return;
+    }
+    currentColor = 1;
+    nextColor = 2;
+    //initBoard();
+    for(auto chess:chessItems)
+    {
+        scene->removeItem(chess);
+        delete chess;
+    }
+    chessItems.clear();
+    chessPoints.clear();
+}
+
+bool GameWidget::checkPoint(int x, int y)
+{
+    return x>=0 && x<15 && y>=0 && y<15;
+}
+
+bool GameWidget::isAIMode()
+{
+    return (currentGamemode == GamemodeType::OFFLINE_AI_EASY ||
+            currentGamemode == GamemodeType::OFFLINE_AI_NORMAL ||
+            currentGamemode == GamemodeType::OFFLINE_AI_HARD);
+}
+
+QPoint GameWidget::posToGrid(const QPoint &pos)
+{
+    // 鼠标坐标 → View坐标 → 场景坐标
+    QPointF scene_pos = view->mapToScene(pos);
+
+    // 整张棋盘图片的尺寸
+    QRectF board_rect = boardItem->boundingRect();
+    qreal board_w = board_rect.width();
+    qreal board_h = board_rect.height();
+
+    // 计算有效网格区域的偏移和尺寸
+    qreal grid_left = board_w * BORDER_RATIO;
+    qreal grid_top = board_h * BORDER_RATIO;
+    qreal grid_w = board_w * (1 - 2 * BORDER_RATIO);
+    qreal grid_h = board_h * (1 - 2 * BORDER_RATIO);
+
+    // 把场景坐标转换为有效网格区域内的相对坐标
+    qreal relative_x = scene_pos.x() - grid_left;
+    qreal relative_y = scene_pos.y() - grid_top;
+
+    // 限制坐标在有效网格内
+    relative_x = qBound(0.0, relative_x, grid_w);
+    relative_y = qBound(0.0, relative_y, grid_h);
+
+    // 映射到15×15网格交点（0~14）
+    int x = qRound(relative_x / grid_w * (BOARD_SIZE - 1));
+    int y = qRound(relative_y / grid_h * (BOARD_SIZE - 1));
+
+    // 最终确保x/y在0~14范围内
+    x = qBound(0, x, BOARD_SIZE - 1);
+    y = qBound(0, y, BOARD_SIZE - 1);
+
+    return QPoint(x, y);
+}
+
+void GameWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    updateViewScale();
+}
+
+void GameWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    updateViewScale();
+
+    // 调整加载控件位置
+    if (aiLoadingGif && aiThinkingLabel) {
+        QSize gifSize = aiLoadingGif->size();
+        aiLoadingGif->move(view->width()/2 - gifSize.width()/2,
+                           view->height()/2 - gifSize.height()/2 - 30);
+        aiThinkingLabel->move(view->width()/2 - aiThinkingLabel->width()/2,
+                              view->height()/2 + gifSize.height()/2);
+    }
+}
+
+void GameWidget::mousePressEvent(QMouseEvent *event)
+{
+    QWidget::mousePressEvent(event);
+    if(currentGamemode == GamemodeType::ONLINE)
+    {
+        extern QString g_myOnlineTag;
+        ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+
+        // 判断当前玩家是否为人类在线玩家
+        if(!GameSession::instance()->currentPlayer || GameSession::instance()->currentPlayer->getMyChessType() != myType)
+        {
+            return;
+        }
+    }
+    if(event->button() == Qt::LeftButton)
+    {
+        QPoint grid = posToGrid(event->pos());
+        int x = grid.x();
+        int y = grid.y();
+        if( boardData->getChess(x, y) == ChessType::EMPTY) // 空位
+        {
+            qDebug()<<grid;
+            emit signal_mouseClicked(x,y);
+        }
+    }
+}
+
+void GameWidget::updateViewScale()
+{
+    if(!boardItem) return;
+
+    // 视图大小
+    QRectF viewRect = view->viewport()->rect();
+    // 棋盘原图大小
+    QRectF boardRect = boardItem->boundingRect();
+
+    // 计算等比缩放比例
+    qreal scaleW = viewRect.width() / boardRect.width();
+    qreal scaleH = viewRect.height() / boardRect.height();
+    qreal scale = qMin(scaleW, scaleH);
+
+    // 重置变换
+    view->resetTransform();
+    view->scale(scale, scale);
+
+    // 居中
+    view->centerOn(boardItem);
+}
+
+GamemodeType GameWidget::getCurrentGamemode() const
+{
+    return currentGamemode;
+}
+
+void GameWidget::setCurrentGamemode(GamemodeType newCurrentGamemode)
+{
+    qDebug()<<"[gameWidget] 设置模式:"<<int(newCurrentGamemode);
+    currentGamemode = newCurrentGamemode;
+    emit signal_changeGamemode(newCurrentGamemode);
+}
+
+void GameWidget::slot_changeGamemode(GamemodeType gamemode)
+{
+    setCurrentGamemode(gamemode);
+}
+
+void GameWidget::slot_undo()
+{
+    emit signal_undoRequest();
+    undoForUI();
+}
+
+void GameWidget::slot_reset()
+{
+    emit signal_resetBoard();
+    clearBoardForUI();
+}
+
+void GameWidget::slot_drawChess(int x, int y, ChessType chessType)
+{
+    drawChess(x,y,chessType);
+}
+
+void GameWidget::slot_switchTurn()
+{
+    //qDebug()<<"[gameWidget] 交换回合";
+    disconnect(this, &GameWidget::signal_mouseClicked, nullptr, nullptr);
+    // if(currentGamemode == GamemodeType::OFFLINE_FREE)
+    // {
+    //     disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
+    // }
+    //disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
+    // connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,Qt::UniqueConnection);
+    if (qobject_cast<HumanPlayer*>(GameSession::instance()->currentPlayer) ||
+        qobject_cast<OnlinePlayer*>(GameSession::instance()->currentPlayer)) {
+        connect(this,&GameWidget::signal_mouseClicked,
+                GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,
+                Qt::UniqueConnection);
+    }
+
+    if(isAIMode())
+    {
+        AIPlayer * ai = qobject_cast<AIPlayer*> (GameSession::instance()->currentPlayer);
+        if(ai)
+        {
+            disconnect(this, &GameWidget::signal_yourTurn, nullptr, nullptr);
+            // disconnect(this,&GameWidget::signal_yourTurn,ai,&AIPlayer::slot_myTurn);
+            connect(this,&GameWidget::signal_yourTurn,ai,&AIPlayer::slot_myTurn,Qt::UniqueConnection);
+            emit signal_yourTurn();
+        }
+    }
+
+}
+
+void GameWidget::slot_playerWin(AbstractPlayer *player)
+{
+
+    QString winner = (player == GameSession::instance()->player1) ? "黑方":"白方";
+    QMessageBox::information(this,"游戏结束",winner+"获胜!");
+    slot_reset();
+}
+
+--- FILE END: client\gomokuClient\gamewidget.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\gamewidget.h ---
+#ifndef GAMEWIDGET_H
+#define GAMEWIDGET_H
+
+#include "SharedType.h"
+#include "abstractplayer.h"
+#include "gamesession.h"
+#include "boarddata.h"
+
+#include <QWidget>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QGraphicsPixmapItem>
+#include <QLabel>
+
+
+namespace Ui {
+class GameWidget;
+}
+
+class GameWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit GameWidget(QWidget *parent = nullptr);
+    ~GameWidget();
+
+    void initBoard();
+    void initUI();
+    void initConnect();
+    void drawChess(int x,int y,ChessType chessType);
+    void undoForUI();
+    void clearBoardForUI();
+
+    bool checkPoint(int x,int y);
+    bool isAIMode();
+
+    QPoint posToGrid(const QPoint &pos);
+
+protected:
+    void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void updateViewScale();
+public:
+
+    GamemodeType getCurrentGamemode() const;
+    void setCurrentGamemode(GamemodeType newCurrentGamemode);
+
+private:
+    Ui::GameWidget *ui;
+
+    QGraphicsView* view;
+    QGraphicsScene* scene;
+    QGraphicsPixmapItem* boardItem;
+
+    GameSession* session;
+
+    GamemodeType currentGamemode;
+    int currentStep = 0;
+
+    BoardDataPtr boardData;
+
+    // int board[15][15]; // 0空1黑2白
+    int currentColor = 1;
+    int nextColor = 2;
+    QList<QGraphicsPixmapItem*> chessItems;
+    QList<QPoint> chessPoints;
+
+    const qreal BORDER_RATIO = 22.5/535;
+
+    const QString PATH_blackChess = ":/pic/res/picture/black_chess.png";
+    const QString PATH_whiteChess = ":/pic/res/picture/white_chess.png";
+    const QString PATH_board = ":/pic/res/picture/game_background.bmp";
+
+    QLabel *aiThinkingLabel; // “AI 正在思考”文本
+    QLabel *aiLoadingGif;    // 加载动画
+    QMovie *loadingMovie;    // GIF 动画资源
+signals:
+    void signal_changeGamemode(GamemodeType gamemode);
+    void signal_mouseClicked(int x,int y);
+    void signal_resetBoard();
+    void signal_undoRequest();
+    void signal_yourTurn();
+public slots:
+    void slot_changeGamemode(GamemodeType gamemode);
+    void slot_undo();
+    void slot_reset();
+    void slot_drawChess(int x,int y,ChessType chessType);
+    void slot_switchTurn();
+    void slot_playerWin(AbstractPlayer* player);
+};
+
+#endif // GAMEWIDGET_H
+
+--- FILE END: client\gomokuClient\gamewidget.h ---
+==============================
+
+--- FILE START: client\gomokuClient\gamewidget.ui ---
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GameWidget</class>
+ <widget class="QWidget" name="GameWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+--- FILE END: client\gomokuClient\gamewidget.ui ---
+==============================
+
+--- FILE START: client\gomokuClient\humanplayer.cpp ---
+#include "humanplayer.h"
+#include <qDebug>
+
+HumanPlayer::HumanPlayer(QObject *parent, ChessType chessType)
+    : AbstractPlayer{parent,chessType}
+{}
+
+void HumanPlayer::slot_onMouseClicked(int x, int y)
+{
+    qDebug()<<"[humanPlayer] 接收点击请求: "<<x<<","<<y;
+    emit signal_tryPlaceChess(x, y, myChessType);
+}
+
+--- FILE END: client\gomokuClient\humanplayer.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\humanplayer.h ---
+#ifndef HUMANPLAYER_H
+#define HUMANPLAYER_H
+
+#include "abstractplayer.h"
+
+class HumanPlayer : public AbstractPlayer
+{
+    Q_OBJECT
+public:
+    explicit HumanPlayer(QObject *parent = nullptr , ChessType chessType = ChessType::BLACK);
+
+    // AbstractPlayer interface
+public slots:
+    void slot_onMouseClicked(int x, int y) override;
+};
+
+#endif // HUMANPLAYER_H
+
+--- FILE END: client\gomokuClient\humanplayer.h ---
+==============================
+
+--- FILE START: client\gomokuClient\main.cpp ---
+#include "mainwindow.h"
+
+#include <QApplication>
+
+int main(int argc, char *argv[])
+{
+    QApplication a(argc, argv);
+    MainWindow w;
+    w.show();
+    return a.exec();
+}
+
+--- FILE END: client\gomokuClient\main.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\mainwindow.cpp ---
+#include "mainwindow.h"
+#include "onlineroomwidget.h"
+#include "ui_mainwindow.h"
+#include "startwidget.h"
+#include "offlinechoicewidget.h"
+#include "gamewidget.h"
+
+#include <OnlineChoiceWidget.h>
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+    initPage();
+    connect(PageManager::instance(),&PageManager::signal_switchToPage,this,&MainWindow::slot_switchToPage);
+
+    connect(this,&MainWindow::signal_undo,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_undo);
+    connect(this,&MainWindow::signal_reset,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_reset);
+
+}
+void MainWindow::initPage()
+{
+    startWidget = new StartWidget();
+    offlineChoiceWidget = new OfflineChoiceWidget();
+    gameWidget = new GameWidget();
+    onlineChoiceWidget = new OnlineChoiceWidget();
+    onlineRoomWidget = new OnlineRoomWidget();
+    ui->startLayout->addWidget(startWidget);
+    ui->offlineChoiceLayout->addWidget(offlineChoiceWidget);
+    ui->onlineChoiceLayout->addWidget(onlineChoiceWidget);
+    ui->onlineRoomLayout->addWidget(onlineRoomWidget);
+
+    ui->gameLayout_main->addWidget(gameWidget);
+
+
+    changePage(0);
+}
+inline void MainWindow::changePage(int index)
+{
+    ui->stackedWidget->setCurrentIndex(index);
+}
+void MainWindow::slot_switchToPage(int index)
+{
+    changePage(index);
+}
+MainWindow::~MainWindow()
+{
+    PageManager::instance()->destroyInstance();
+    delete ui;
+}
+
+void MainWindow::on_undoButton_clicked()
+{
+    emit signal_undo();
+}
+
+
+void MainWindow::on_resetButton_clicked()
+{
+    emit signal_reset();
+}
+
+
+void MainWindow::on_backButton_clicked()
+{
+    PageManager::instance()->switchToPage(1);
+    emit signal_reset();
+}
+
+
+--- FILE END: client\gomokuClient\mainwindow.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\mainwindow.h ---
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
+#include <QMainWindow>
+#include <pagemanager.h>
+
+QT_BEGIN_NAMESPACE
+namespace Ui {
+class MainWindow;
+}
+QT_END_NAMESPACE
+
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
+public:
+
+    QWidget* startWidget;
+    QWidget* offlineChoiceWidget;
+    QWidget* onlineChoiceWidget;
+    QWidget* onlineRoomWidget;
+    QWidget* gameWidget;
+
+    MainWindow(QWidget *parent = nullptr);
+    ~MainWindow();
+
+    void initPage();
+    inline void changePage(int index);
+signals:
+    void signal_undo();
+    void signal_reset();
+private:
+    Ui::MainWindow *ui;
+
+public slots:
+    void slot_switchToPage(int index);
+
+private slots:
+    void on_undoButton_clicked();
+    void on_resetButton_clicked();
+    void on_backButton_clicked();
+};
+
+#endif // MAINWINDOW_H
+
+--- FILE END: client\gomokuClient\mainwindow.h ---
+==============================
+
+--- FILE START: client\gomokuClient\mainwindow.ui ---
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>五子棋Gomoku</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    /* 主窗口全局样式 */
+    QMainWindow {
+     background-color: #F5F7FA;
+     border: none;
+    }
+    QMainWindow::centralWidget {
+     border: none;
+     margin: 10px; /* 预留边框空间，方便拓展 */
+    }
+    /* 核心容器：圆角+轻微阴影，提升美观度 */
+    QWidget#centralwidget {
+     background-color: white;
+     border-radius: 12px;
+     padding: 5px;
+    }
+    /* 页面切换容器：QStackedWidget 优化 */
+    QStackedWidget#stackedWidget {
+     border: none;
+     background-color: transparent;
+    }
+    /* 所有页面容器：透明背景，统一视觉 */
+    QWidget#startPage, QWidget#offlineChoicePage, QWidget#onlineChoicePage, QWidget#onlineRoomPage, QWidget#gamePage {
+     background-color: transparent;
+    }
+    /* 游戏页面按钮栏样式：与整套风格统一 */
+    QPushButton#undoButton, QPushButton#resetButton {
+     border-radius: 8px;
+     border: none;
+     font-size: 11px;
+     height: 36px;
+     padding: 0 20px;
+     margin: 0 5px;
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     color: white;
+    }
+    QPushButton#undoButton:hover, QPushButton#resetButton:hover {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
+    }
+    QPushButton#backButton {
+     border-radius: 8px;
+     border: none;
+     font-size: 11px;
+     height: 36px;
+     padding: 0 20px;
+     margin: 0 5px;
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+    }
+    QPushButton#backButton:hover {
+     background-color: #F8F8F8;
+     color: #FF6B6B;
+     border-color: #FFE6E6;
+    }
+    /* 游戏按钮栏容器：统一间距，美化底部 */
+    QWidget#widget_2 {
+     background-color: #F5F7FA;
+     border-radius: 8px;
+     margin: 5px;
+    }
+    QHBoxLayout#gameLayout_bar {
+     justify-content: center; /* 按钮居中，视觉更协调 */
+     spacing: 15px; /* 按钮间距优化 */
+     padding: 5px 0;
+    }
+   </string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="spacing">
+     <number>0</number>
+    </property>
+    <item>
+     <widget class="QStackedWidget" name="stackedWidget">
+      <property name="currentIndex">
+       <number>3</number>
+      </property>
+      <widget class="QWidget" name="startPage">
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <item>
+         <layout class="QVBoxLayout" name="startLayout"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="offlineChoicePage">
+       <layout class="QVBoxLayout" name="verticalLayout_4">
+        <item>
+         <layout class="QVBoxLayout" name="offlineChoiceLayout"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="onlineChoicePage">
+       <layout class="QVBoxLayout" name="verticalLayout_7">
+        <item>
+         <layout class="QVBoxLayout" name="onlineChoiceLayout"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="onlineRoomPage">
+       <layout class="QVBoxLayout" name="verticalLayout_8">
+        <item>
+         <layout class="QVBoxLayout" name="onlineRoomLayout"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="gamePage">
+       <layout class="QVBoxLayout" name="verticalLayout_5">
+        <item>
+         <layout class="QVBoxLayout" name="gameLayout_all" stretch="20,1">
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QWidget" name="widget" native="true">
+            <layout class="QVBoxLayout" name="verticalLayout_6">
+             <item>
+              <layout class="QVBoxLayout" name="gameLayout_main"/>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QWidget" name="widget_2" native="true">
+            <layout class="QHBoxLayout" name="horizontalLayout_2">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <item>
+              <layout class="QHBoxLayout" name="gameLayout_bar">
+               <property name="spacing">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="QPushButton" name="undoButton">
+                 <property name="font">
+                  <font>
+                   <pointsize>-1</pointsize>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>悔棋</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="resetButton">
+                 <property name="font">
+                  <font>
+                   <pointsize>-1</pointsize>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>重置</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="backButton">
+                 <property name="font">
+                  <font>
+                   <pointsize>-1</pointsize>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>返回</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">
+     QMenuBar {
+      background-color: #4A6CF7;
+      color: white;
+      font-family: &quot;Microsoft YaHei&quot;;
+     }
+     QMenuBar::item {
+      padding: 0 15px;
+      height: 25px;
+     }
+     QMenuBar::item:selected {
+      background-color: #3A5CE7;
+     }
+    </string>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="styleSheet">
+    <string notr="true">
+     QStatusBar {
+      background-color: #F5F7FA;
+      color: #666666;
+      font-family: &quot;Microsoft YaHei&quot;;
+      border-top: 1px solid #EEEEEE;
+     }
+    </string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+--- FILE END: client\gomokuClient\mainwindow.ui ---
+==============================
+
+--- FILE START: client\gomokuClient\networkmanager.cpp ---
+#include "NetworkManager.h"
+
+NetworkManager::NetworkManager(QObject *parent) : QObject(parent) {
+    connect(&m_socket, &QWebSocket::connected, this, &NetworkManager::connected);
+    connect(&m_socket, &QWebSocket::textMessageReceived, this, &NetworkManager::onTextMessageReceived);
+    connect(&m_socket, &QWebSocket::disconnected, this, &NetworkManager::onSocketDisconnected);
+    connect(&m_socket, &QWebSocket::errorOccurred, this, [this](QAbstractSocket::SocketError error){
+        emit errorOccurred("网络错误：" + m_socket.errorString());
+    });
+}
+
+void NetworkManager::connectToServer(const QString& url) {
+    if(isConnected()) {
+        qDebug() << "[Network] 已连接到服务端，无需重复连接";
+        return;
+    }
+    m_socket.open(QUrl(url));
+    qDebug() << "[Network] 正在连接服务端：" << url;
+}
+void NetworkManager::sendJoinRoom(const QString& roomId) {
+    if(!isConnected()) {
+        emit errorOccurred("未连接到服务端，请先连接");
+        return;
+    }
+    m_socket.sendTextMessage(serializeMsg("JOIN_ROOM", roomId));
+}
+
+// 发送落子
+void NetworkManager::sendChessMove(int x, int y, const QString& player) {
+    if(!isConnected()) {
+        emit errorOccurred("未连接到服务端，落子失败");
+        return;
+    }
+    m_socket.sendTextMessage(serializeMsg("CHESS_MOVE", "", player, x, y));
+}
+
+// 网络断开
+void NetworkManager::onSocketDisconnected() {
+    qDebug() << "[Network] 与服务端断开连接";
+    emit errorOccurred("与服务端断开连接，请重新连接");
+}
+
+void NetworkManager::sendCreateRoom() {
+    if(!isConnected()) {
+        emit errorOccurred("未连接到服务端，请先连接");
+        return;
+    }
+    // 调用序列化方法，发送 CREATE_ROOM 消息（无额外参数）
+    m_socket.sendTextMessage(serializeMsg("CREATE_ROOM"));
+    qDebug() << "[Network] 发送创建房间请求";
+}
+
+void NetworkManager::sendMatchRequest() {
+    QJsonObject obj;
+    obj["type"] = "MATCH";
+    m_socket.sendTextMessage(QJsonDocument(obj).toJson());
+}
+
+void NetworkManager::onTextMessageReceived(QString message) {
+    qDebug() << "[Network] 收到服务端消息：" << message;
+    QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
+    if(!doc.isObject()) {
+        emit errorOccurred("服务端消息格式错误");
+        return;
+    }
+    QJsonObject obj = doc.object();
+    QString type = obj["type"].toString();
+
+    if (type == "ROOM_INFO") {
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        emit sig_roomInfoReceived(roomId, player, msg);
+    }else if (type == "PLAYER_READY") {
+        QString msg = obj["msg"].toString();
+        emit sig_playerReadyReceived(msg);
+    }else if (type == "GAME_START") {
+        QString msg = obj["msg"].toString();
+        emit sig_gameStartReceived(msg);
+    }else if (type == "CHESS_MOVE") {
+        int x = obj["x"].toInt();
+        int y = obj["y"].toInt();
+        int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
+        emit moveReceived(x, y, color);
+    } else if (type == "GAME_OVER") {
+        QString msg = obj["msg"].toString();
+        emit sig_gameOverReceived(msg);
+    } else if (type == "ERROR") {
+        QString msg = obj["msg"].toString();
+        emit sig_errorReceived(msg);
+    }
+}
+
+QByteArray NetworkManager::serializeMsg(const QString& type, const QString& roomId,
+                                        const QString& player, int x, int y, const QString& msg) {
+    QJsonObject obj;
+    obj["type"] = type;
+    if(!roomId.isEmpty()) obj["roomId"] = roomId;
+    if(!player.isEmpty()) obj["player"] = player;
+    if(x >= 0 && y >= 0) {
+        obj["x"] = x;
+        obj["y"] = y;
+    }
+    if(!msg.isEmpty()) obj["msg"] = msg;
+    return QJsonDocument(obj).toJson(QJsonDocument::Compact);
+}
+
+void NetworkManager::sendReadyRequest() {
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("PLAYER_READY"));
+}
+
+void NetworkManager::sendStartGameRequest() {
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("START_GAME"));
+}
+
+--- FILE END: client\gomokuClient\networkmanager.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\networkmanager.h ---
+#ifndef NETWORKMANAGER_H
+#define NETWORKMANAGER_H
+
+#include <QObject>
+#include <QtWebSockets/QWebSocket>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QUuid>
+
+class NetworkManager : public QObject {
+    Q_OBJECT
+public:
+    explicit NetworkManager(QObject *parent = nullptr);
+
+    static NetworkManager& instance() {
+        static NetworkManager _instance;
+        return _instance;
+    }
+
+    void connectToServer(const QString& url);
+    void sendCreateRoom(); // 创建房间
+    void sendJoinRoom(const QString& roomId); // 加入房间
+    void sendChessMove(int x, int y, const QString& player); // 发送落子
+    void sendMatchRequest();
+    void sendReadyRequest();
+    void sendStartGameRequest();
+
+    QString getCurrentSessionId() { return m_sessionId; }
+    bool isConnected() { return m_socket.state() == QAbstractSocket::ConnectedState; }
+
+signals:
+    void connected();
+    void gameStarted(int myColor);    // 1为黑，2为白
+
+    void sig_playerReadyReceived(QString msg);
+    void sig_gameStartReceived(QString msg); // 游戏正式开始信号
+    void moveReceived(int x, int y, int color);
+    void errorOccurred(QString msg);
+
+    void sig_roomInfoReceived(QString roomId, QString player, QString msg); // 房间信息
+    void sig_gameOverReceived(QString msg); // 游戏结束
+    void sig_errorReceived(QString msg); // 错误信息
+
+private slots:
+    void onTextMessageReceived(QString message);
+    void onSocketDisconnected();
+
+private:
+    QWebSocket m_socket;
+    QString m_sessionId;
+    QByteArray serializeMsg(const QString& type, const QString& roomId = "",
+                            const QString& player = "", int x = -1, int y = -1, const QString& msg = "");
+};
+
+#endif
+
+--- FILE END: client\gomokuClient\networkmanager.h ---
+==============================
+
+--- FILE START: client\gomokuClient\offlinechoicewidget.cpp ---
+#include "offlinechoicewidget.h"
+#include "ui_offlinechoicewidget.h"
+#include "pagemanager.h"
+
+OfflineChoiceWidget::OfflineChoiceWidget(QWidget *parent)
+    : QWidget(parent)
+    , ui(new Ui::OfflineChoiceWidget)
+{
+    ui->setupUi(this);
+}
+
+OfflineChoiceWidget::~OfflineChoiceWidget()
+{
+    delete ui;
+}
+
+void OfflineChoiceWidget::on_returnButton_clicked()
+{
+    PageManager::instance()->switchToPage(0);
+}
+
+
+void OfflineChoiceWidget::on_freeButton_clicked()
+{
+    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_FREE);
+}
+
+
+void OfflineChoiceWidget::on_easyButton_clicked()
+{
+    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_AI_EASY);
+}
+
+
+void OfflineChoiceWidget::on_normalButton_clicked()
+{
+    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_AI_NORMAL);
+}
+
+
+void OfflineChoiceWidget::on_hardButton_clicked()
+{
+    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_AI_HARD);
+}
+
+
+--- FILE END: client\gomokuClient\offlinechoicewidget.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\offlinechoicewidget.h ---
+#ifndef OFFLINECHOICEWIDGET_H
+#define OFFLINECHOICEWIDGET_H
+
+#include <QWidget>
+
+namespace Ui {
+class OfflineChoiceWidget;
+}
+
+class OfflineChoiceWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit OfflineChoiceWidget(QWidget *parent = nullptr);
+    ~OfflineChoiceWidget();
+
+private slots:
+    void on_returnButton_clicked();
+
+    void on_freeButton_clicked();
+
+    void on_easyButton_clicked();
+
+    void on_normalButton_clicked();
+
+    void on_hardButton_clicked();
+
+private:
+    Ui::OfflineChoiceWidget *ui;
+};
+
+#endif // OFFLINECHOICEWIDGET_H
+
+--- FILE END: client\gomokuClient\offlinechoicewidget.h ---
+==============================
+
+--- FILE START: client\gomokuClient\offlinechoicewidget.ui ---
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OfflineChoiceWidget</class>
+ <widget class="QWidget" name="OfflineChoiceWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>414</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>五子棋 - 离线模式选择</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    /* 全局基础样式 */
+    QWidget {
+     background-color: #F5F7FA;
+     font-family: &quot;Microsoft YaHei&quot;;
+     font-size: 14px;
+    }
+    /* 分组框样式：卡片化、圆角、阴影 */
+    QGroupBox#groupBox_3 {
+     border: none;
+     background-color: white;
+     border-radius: 12px;
+     margin-top: 10px;
+     padding-top: 15px;
+    }
+    /* 分组框标题（隐藏） */
+    QGroupBox#groupBox_3::title {
+     subcontrol-origin: margin;
+     subcontrol-position: top center;
+     padding: 0 10px;
+     color: transparent;
+    }
+    /* 功能按钮通用样式（自由练习/人机难度） */
+    QPushButton {
+     border-radius: 8px;
+     border: none;
+     font-size: 15px;
+     height: 38px;
+     margin: 6px 15px;
+    }
+    /* 核心功能按钮（自由练习/人机难度） */
+    QPushButton#freeButton, QPushButton#easyButton, QPushButton#normalButton, QPushButton#hardButton {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     color: white;
+    }
+    QPushButton#freeButton:hover, QPushButton#easyButton:hover, QPushButton#normalButton:hover, QPushButton#hardButton:hover {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
+    }
+    /* 次要按钮（返回） */
+    QPushButton#returnButton {
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+     font-size: 12px;
+    }
+    QPushButton#returnButton:hover {
+     background-color: #F8F8F8;
+     color: #FF6B6B;
+     border-color: #FFE6E6;
+    }
+    /* 标题样式 */
+    QLabel#lblOfflineTitle {
+     font-size: 22px;
+     font-weight: bold;
+     color: #4A6CF7;
+     alignment: center;
+    }
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="1,3">
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <item>
+    <widget class="QWidget" name="widget" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayoutTitle">
+      <item>
+       <widget class="QLabel" name="lblOfflineTitle">
+        <property name="text">
+         <string>离线模式选择</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="widget_2" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayout" stretch="2,3,2">
+      <item>
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="groupBox_3">
+        <property name="title">
+         <string/>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <property name="spacing">
+          <number>3</number>
+         </property>
+         <item>
+          <widget class="QPushButton" name="freeButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>自由练习</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="easyButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>简单人机</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="normalButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>普通人机</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="hardButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>困难人机</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="returnButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>返回</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+--- FILE END: client\gomokuClient\offlinechoicewidget.ui ---
+==============================
+
+--- FILE START: client\gomokuClient\onlinechoicewidget.cpp ---
+#include "onlinechoicewidget.h"
+#include "ui_onlinechoicewidget.h"
+#include "pagemanager.h"
+#include "NetworkManager.h"
+#include <QMessageBox>
+
+QString g_currentRoomId = "";
+QString g_myOnlineTag = "";
+
+
+OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
+    : QWidget(parent)
+    , ui(new Ui::OnlineChoiceWidget)
+{
+    ui->setupUi(this);
+    NetworkManager::instance().connectToServer("ws://localhost:8080/gomoku/ws");
+    // 绑定网络连接成功信号
+    connect(&NetworkManager::instance(), &NetworkManager::connected, this, [](){
+        QMessageBox::information(nullptr, "网络提示", "已成功连接到五子棋服务端！");
+    });
+    // 绑定网络错误信号
+    connect(&NetworkManager::instance(), &NetworkManager::errorOccurred, this, [](QString msg){
+        QMessageBox::warning(nullptr, "网络错误", msg);
+    });
+}
+
+OnlineChoiceWidget::~OnlineChoiceWidget()
+{
+    delete ui;
+}
+
+void OnlineChoiceWidget::on_returnButton_2_clicked()
+{
+    PageManager::instance()->switchToPage(0);
+}
+
+
+void OnlineChoiceWidget::on_addRoomButton_clicked()
+{
+    NetworkManager::instance().sendCreateRoom();
+    // 绑定房间信息信号→跳转到房间页面
+    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
+    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
+                    [this, conn](QString roomId, QString player, QString msg){
+        Q_UNUSED(player);
+        Q_UNUSED(msg);
+
+        qDebug() << "[OnlineChoice] 创建房间成功，ID：" << roomId;
+
+        // 传递房间ID给房间页面
+        extern QString g_currentRoomId;
+        g_currentRoomId = roomId.trimmed().toLower();
+        extern QString g_myOnlineTag;
+        g_myOnlineTag = player;
+
+        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
+    });
+}
+
+
+void OnlineChoiceWidget::on_JoinRoomButton_clicked()
+{
+    QString roomId = ui->lineEdit_roomid->text().trimmed(); // 新增的房间ID输入框
+    if(roomId.isEmpty())
+    {
+        QMessageBox::warning(this, "提示", "请输入房间ID！");
+        return;
+    }
+    NetworkManager::instance().sendJoinRoom(roomId);
+    // 绑定房间信息信号→跳转到房间页面
+    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
+    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
+                    [this, conn](QString roomId, QString player, QString msg){
+
+        Q_UNUSED(roomId);
+        QMessageBox::information(this, "房间提示", msg);
+        extern QString g_currentRoomId;
+        g_currentRoomId = roomId.trimmed().toLower();
+        extern QString g_myOnlineTag;
+        g_myOnlineTag = player;
+
+        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
+    });
+}
+
+
+void OnlineChoiceWidget::on_searchGameButton_clicked()
+{
+    QMessageBox::information(this, "提示", "随机匹配功能正在开发中，敬请期待！");
+}
+
+
+--- FILE END: client\gomokuClient\onlinechoicewidget.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\onlinechoicewidget.h ---
+#ifndef ONLINECHOICEWIDGET_H
+#define ONLINECHOICEWIDGET_H
+
+#include <QWidget>
+
+namespace Ui {
+class OnlineChoiceWidget;
+}
+
+class OnlineChoiceWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit OnlineChoiceWidget(QWidget *parent = nullptr);
+    ~OnlineChoiceWidget();
+
+private slots:
+    void on_returnButton_2_clicked();
+
+    void on_addRoomButton_clicked();
+
+    void on_JoinRoomButton_clicked();
+
+    void on_searchGameButton_clicked();
+
+private:
+    Ui::OnlineChoiceWidget *ui;
+};
+
+#endif // ONLINECHOICEWIDGET_H
+
+--- FILE END: client\gomokuClient\onlinechoicewidget.h ---
+==============================
+
+--- FILE START: client\gomokuClient\onlinechoicewidget.ui ---
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OnlineChoiceWidget</class>
+ <widget class="QWidget" name="OnlineChoiceWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>498</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>五子棋 - 在线模式选择</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    /* 全局基础样式：优化背景色，统一字体抗锯齿 */
+    QWidget {
+     background-color: #F5F7FA;
+     font-family: &quot;Microsoft YaHei&quot;;
+     font-size: 14px;
+    }
+    
+    /* 分组框样式：强化卡片质感，优化内边距和圆角 */
+    QGroupBox#groupBox, QGroupBox#groupBox_2 {
+     border: none;
+     background-color: white;
+     border-radius: 12px;
+     margin-top: 10px;
+     padding: 15px 10px; /* 优化内边距，避免内容贴边 */
+     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #FAFAFA);
+    }
+    
+    /* 分组框标题（隐藏） */
+    QGroupBox#groupBox::title, QGroupBox#groupBox_2::title {
+     subcontrol-origin: margin;
+     subcontrol-position: top center;
+     padding: 0 10px;
+     color: transparent;
+    }
+    
+    /* 功能按钮通用样式：优化圆角和高度，增加内边距 */
+    QPushButton {
+     border-radius: 10px; /* 更圆润的圆角 */
+     border: none;
+     font-size: 15px;
+     height: 42px; /* 优化按钮高度，更易点击 */
+     margin: 8px 12px; /* 调整间距，更紧凑 */
+     padding-left: 15px;
+     padding-right: 15px;
+    }
+    
+    /* 核心功能按钮：优化渐变色彩过渡，增加按下态 */
+    QPushButton#addRoomButton, QPushButton#JoinRoomButton, QPushButton#searchGameButton,QPushButton#roomListButton {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     color: white;
+     font-weight: 500; /* 轻微加粗，突出核心按钮 */
+    }
+    QPushButton#addRoomButton:hover, QPushButton#JoinRoomButton:hover, QPushButton#searchGameButton:hover ,QPushButton#roomListButton:hover{
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
+    }
+    QPushButton#addRoomButton:pressed, QPushButton#JoinRoomButton:pressed, QPushButton#searchGameButton:pressed 
+QPushButton#roomListButton:pressed{
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2A4CD7, stop:1 #1BB886);
+     padding-top: 2px; /* 按下轻微位移，模拟点击反馈 */
+    }
+    
+    /* 次要按钮：优化边框和hover态，增加按下态 */
+    QPushButton#returnButton_2 {
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+     font-size: 13px;
+     height: 36px;
+     border-radius: 8px;
+    }
+    QPushButton#returnButton_2:hover {
+     background-color: #F8F8F8;
+     color: #FF6B6B;
+     border-color: #FFE6E6;
+     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #FFF5F5);
+    }
+    QPushButton#returnButton_2:pressed {
+     background-color: #F0F0F0;
+     border-color: #FFD6D6;
+    }
+    
+    /* 房间列表按钮：适配次要按钮样式，保持视觉统一 */
+    QPushButton#roomListButton {
+     border: 1px solid #EEEEEE;
+     font-size: 14px;
+     height: 38px;
+     border-radius: 8px;
+     margin: 8px 12px;
+    }
+    
+    /* 标题样式：优化字重和间距，增加渐变色彩 */
+    QLabel#lblOnlineTitle {
+     font-size: 24px;
+     font-weight: 600;
+     color: #4A6CF7;
+     alignment: center;
+     padding: 10px 0; /* 增加上下间距 */
+     background-clip: text;
+    }
+    
+    /* 输入框样式：优化圆角、边框和内边距，贴合整体风格 */
+    QLineEdit#lineEdit_roomid {
+     border: 1px solid #E5E9F2;
+     border-radius: 8px;
+     padding: 10px 12px;
+     background-color: white;
+     font-size: 14px;
+     height: 42px;
+     margin: 8px 12px;
+    }
+    QLineEdit#lineEdit_roomid:focus {
+     border-color: #4A6CF7;
+     background-color: #FAFCFF;
+     outline: none;
+    }
+    QLineEdit#lineEdit_roomid::placeholder {
+     color: #C0C6D0;
+    }
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,3">
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <item>
+    <widget class="QWidget" name="widget" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayoutTitle">
+      <item>
+       <widget class="QLabel" name="lblOnlineTitle">
+        <property name="text">
+         <string>在线模式选择</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="widget_2" native="true">
+     <layout class="QVBoxLayout" name="verticalLayout" stretch="5,1">
+      <item>
+       <widget class="QWidget" name="widget_3" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,3,3,1">
+         <item>
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>21</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="groupBox">
+           <property name="title">
+            <string/>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_4">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <item>
+             <widget class="QPushButton" name="addRoomButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Microsoft YaHei</family>
+                <pointsize>-1</pointsize>
+                <fontweight>Medium</fontweight>
+               </font>
+              </property>
+              <property name="text">
+               <string>开房间</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="searchGameButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Microsoft YaHei</family>
+                <pointsize>-1</pointsize>
+                <fontweight>Medium</fontweight>
+               </font>
+              </property>
+              <property name="text">
+               <string>随机匹配</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="groupBox_2">
+           <property name="title">
+            <string/>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_2">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <item>
+             <widget class="QLineEdit" name="lineEdit_roomid">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="echoMode">
+               <enum>QLineEdit::EchoMode::Normal</enum>
+              </property>
+              <property name="placeholderText">
+               <string>请输入房间号</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="JoinRoomButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Microsoft YaHei</family>
+                <pointsize>-1</pointsize>
+                <fontweight>Medium</fontweight>
+               </font>
+              </property>
+              <property name="text">
+               <string>加入房间</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="roomListButton">
+              <property name="text">
+               <string>房间列表</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>36</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="widget_4" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout_5">
+         <item>
+          <widget class="QPushButton" name="returnButton_2">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>返回</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+--- FILE END: client\gomokuClient\onlinechoicewidget.ui ---
+==============================
+
+--- FILE START: client\gomokuClient\onlineplayer.cpp ---
+#include "OnlinePlayer.h"
+#include <qDebug>
+
+OnlinePlayer::OnlinePlayer(QObject *parent, ChessType chessType)
+    : AbstractPlayer{parent, chessType}
+{
+    // 初始化在线标识（与ChessType绑定）
+    m_onlineTag = (chessType == ChessType::BLACK) ? "BLACK" : "WHITE";
+    qDebug() << "[OnlinePlayer] 初始化在线玩家：" << m_onlineTag;
+}
+
+// 重写：自身落子→发送到服务端+触发本地绘子
+void OnlinePlayer::slot_onMouseClicked(int x, int y)
+{
+    qDebug() << "[OnlinePlayer] 自身尝试落子：" << x << "," << y << "，标识：" << m_onlineTag;
+    // 1. 发送落子信息到服务端
+    m_netManager.sendChessMove(x, y, m_onlineTag);
+    // 2. 触发本地绘子
+    emit signal_tryPlaceChess(x, y, myChessType);
+}
+
+// 处理对手落子→触发本地绘子
+void OnlinePlayer::slot_onOpponentMoveReceived(int x, int y, int color)
+{
+    ChessType oppoChessType = (color == 1) ? ChessType::BLACK : ChessType::WHITE;
+    qDebug() << "[OnlinePlayer] 收到对手落子：" << x << "," << y << "，颜色：" << color;
+    // 触发本地绘子
+    emit signal_tryPlaceChess(x, y, oppoChessType);
+}
+
+--- FILE END: client\gomokuClient\onlineplayer.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\onlineplayer.h ---
+#ifndef ONLINEPLAYER_H
+#define ONLINEPLAYER_H
+#include "abstractplayer.h"
+#include "NetworkManager.h"
+#include <QString>
+
+class OnlinePlayer : public AbstractPlayer
+{
+    Q_OBJECT
+public:
+    explicit OnlinePlayer(QObject *parent = nullptr, ChessType chessType = ChessType::BLACK);
+
+    void setOnlinePlayerTag(const QString& tag) { m_onlineTag = tag; }
+    QString getOnlinePlayerTag() const { return m_onlineTag; }
+
+public slots:
+    // 重写父类方法：处理自身落子（触发网络发送）
+    void slot_onMouseClicked(int x, int y) override;
+    // 处理服务端推送的对手落子（触发本地绘子）
+    void slot_onOpponentMoveReceived(int x, int y, int color);
+
+private:
+    // 在线标识
+    QString m_onlineTag;
+    NetworkManager& m_netManager = NetworkManager::instance();
+};
+#endif // ONLINEPLAYER_H
+
+--- FILE END: client\gomokuClient\onlineplayer.h ---
+==============================
+
+--- FILE START: client\gomokuClient\onlineroomwidget.cpp ---
+#include "onlineroomwidget.h"
+#include "ui_onlineroomwidget.h"
+
+#include <PageManager.h>
+#include <NetworkManager.h>
+#include <QClipboard>
+#include <QApplication>
+#include <QMessageBox>
+#include "GameSession.h"
+
+// 全局变量（临时传递，后续可封装为配置单例，不修改现有标识符）
+extern QString g_currentRoomId;
+extern QString g_myOnlineTag;
+
+OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
+    : QWidget(parent)
+    , ui(new Ui::OnlineRoomWidget)
+{
+    ui->setupUi(this);
+
+    // 初始化：展示房间ID
+    if(!g_currentRoomId.isEmpty())
+    {
+        QString displayRoomId = g_currentRoomId.trimmed().toLower();
+        ui->lblRoomId->setText(displayRoomId);
+        qDebug() << "[OnlineRoom] 显示房间ID：" << displayRoomId;
+    }
+    // 初始化：设置房间状态为「等待对手加入」
+    ui->lblRoomStatus->setText("等待对手加入...");
+    // 绑定服务端房间信息信号→更新房间状态
+    connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, [this](QString roomId, QString player, QString msg){
+        Q_UNUSED(player);
+        ui->lblRoomId->setText(roomId);
+        ui->lblRoomStatus->setText(msg);
+    });
+
+    //监听玩家准备状态变更
+    connect(GameSession::instance(), &GameSession::sig_playerReadyChanged, this, [this](bool currentState,QString msg){
+        qDebug()<<"111";
+        if(g_myOnlineTag == "BLACK")
+        {
+            if(currentState)
+            {
+                ui->btnStartGame->setEnabled(true);
+            }
+            else
+            {
+                ui->btnStartGame->setEnabled(false);
+            }
+        }
+    });
+
+    // 监听游戏正式开始
+    connect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, [this](QString msg){
+        QMessageBox::information(this, "游戏开始", msg);
+        GameSession::instance()->slot_changeGamemode(GamemodeType::ONLINE);
+        ChessType myChessType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+        GameSession::instance()->setOnlinePlayerTag(myChessType, g_myOnlineTag);
+        PageManager::instance()->switchToPage(4);
+    });
+}
+
+OnlineRoomWidget::~OnlineRoomWidget()
+{
+    delete ui;
+}
+
+void OnlineRoomWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    ui->lblRoomId->setText(g_currentRoomId.trimmed().toLower());
+    ui->lblHostChess->setText("棋子：黑色");
+    ui->lblOpponentChess->setText("棋子：白色");
+
+    if (g_myOnlineTag == "BLACK") {
+        // 房主默认UI
+        ui->lblHostId->setText("我 (房主)");
+        ui->lblHostStatus->setText("已准备");
+        ui->lblOpponentId->setText("未加入");
+        ui->lblOpponentStatus->setText("未在线");
+        ui->btnStartGame->setText("开始游戏");
+        ui->btnStartGame->setEnabled(false);
+        ui->lblRoomStatus->setText("等待对手加入...");
+    } else {
+        // 访客默认UI
+        ui->lblHostId->setText("房主");
+        ui->lblHostStatus->setText("已准备");
+        ui->lblOpponentId->setText("我 (已加入)");
+        ui->lblOpponentStatus->setText("未准备");
+        ui->btnStartGame->setText("准备");
+        ui->btnStartGame->setEnabled(true);
+        ui->lblRoomStatus->setText("成功加入房间，请点击准备");
+    }
+}
+
+void OnlineRoomWidget::on_btnQuitRoom_clicked()
+{
+    PageManager::instance()->switchToPage(2);
+    // 重置全局变量
+    g_currentRoomId = "";
+    g_myOnlineTag = "";
+}
+
+
+void OnlineRoomWidget::on_btnCopyRoomId_clicked()
+{
+    QString roomId = ui->lblRoomId->text();
+    QApplication::clipboard()->setText(roomId);
+    QMessageBox::information(this, "提示", "房间ID已复制到剪贴板！");
+}
+
+
+void OnlineRoomWidget::on_btnStartGame_clicked()
+{
+    if (g_myOnlineTag == "BLACK") {
+        NetworkManager::instance().sendStartGameRequest(); // 房主点击触发开始
+    } else {
+        NetworkManager::instance().sendReadyRequest(); // 访客点击触发准备
+    }
+}
+
+
+--- FILE END: client\gomokuClient\onlineroomwidget.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\onlineroomwidget.h ---
+#ifndef ONLINEROOMWIDGET_H
+#define ONLINEROOMWIDGET_H
+
+#include <QWidget>
+
+namespace Ui {
+class OnlineRoomWidget;
+}
+
+class OnlineRoomWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit OnlineRoomWidget(QWidget *parent = nullptr);
+    ~OnlineRoomWidget();
+
+protected:
+    void showEvent(QShowEvent *event) override;
+
+private slots:
+    void on_btnQuitRoom_clicked();
+
+    void on_btnCopyRoomId_clicked();
+
+    void on_btnStartGame_clicked();
+
+private:
+    Ui::OnlineRoomWidget *ui;
+};
+
+#endif // ONLINEROOMWIDGET_H
+
+--- FILE END: client\gomokuClient\onlineroomwidget.h ---
+==============================
+
+--- FILE START: client\gomokuClient\onlineroomwidget.ui ---
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OnlineRoomWidget</class>
+ <widget class="QWidget" name="OnlineRoomWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>在线房间</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    /* 全局样式 */
+    QWidget {
+     background-color: #F5F7FA;
+     font-family: &quot;Microsoft YaHei&quot;;
+     font-size: 14px;
+    }
+    /* 标题栏样式 */
+    QFrame#frameTitle {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     border-radius: 12px 12px 0 0;
+     color: white;
+    }
+    /* 玩家卡片样式 */
+    QFrame#cardHost, QFrame#cardOpponent {
+     background-color: white;
+     border-radius: 10px;
+     border: 1px solid #EEEEEE;
+    }
+    /* 卡片标题 */
+    QLabel#lblHostTitle, QLabel#lblOpponentTitle {
+     font-size: 16px;
+     font-weight: bold;
+     color: #333333;
+    }
+    /* 信息文本 */
+    QLabel#lblHostId, QLabel#lblOpponentId, QLabel#lblHostChess, QLabel#lblOpponentChess {
+     color: #666666;
+    }
+    /* 状态文本 */
+    QLabel#lblHostStatus, QLabel#lblOpponentStatus {
+     font-size: 13px;
+    }
+    QLabel#lblHostStatus {
+     color: #4A6CF7;
+    }
+    QLabel#lblOpponentStatus {
+     color: #FF6B6B;
+    }
+    /* 按钮通用样式 */
+    QPushButton {
+     border-radius: 8px;
+     font-size: 14px;
+     height: 40px;
+     border: none;
+    }
+    /* 主按钮（开始游戏） */
+    QPushButton#btnStartGame {
+     background-color: #4A6CF7;
+     color: white;
+    }
+    QPushButton#btnStartGame:disabled {
+     background-color: #CCCCCC;
+     color: #999999;
+    }
+    QPushButton#btnStartGame:hover {
+     background-color: #3A5CE7;
+    }
+    /* 次要按钮（复制/退出） */
+    QPushButton#btnCopyRoomId, QPushButton#btnQuitRoom {
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+    }
+    QPushButton#btnCopyRoomId:hover, QPushButton#btnQuitRoom:hover {
+     background-color: #F8F8F8;
+     color: #333333;
+    }
+    /* 状态提示 */
+    QLabel#lblRoomStatus {
+     font-size: 18px;
+     font-weight: bold;
+     color: #4A6CF7;
+    }
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,0">
+   <item>
+    <widget class="QFrame" name="frameTitle">
+     <layout class="QHBoxLayout" name="horizontalLayoutTitle">
+      <item>
+       <widget class="QLabel" name="lblRoomTitle">
+        <property name="font">
+         <font>
+          <family>Microsoft YaHei</family>
+          <pointsize>-1</pointsize>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>房间号：</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblRoomId">
+        <property name="font">
+         <font>
+          <family>Microsoft YaHei</family>
+          <pointsize>-1</pointsize>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Null</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacerTitle">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblGameMode">
+        <property name="font">
+         <font>
+          <family>Microsoft YaHei</family>
+          <pointsize>-1</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>五子棋 - 在线对战</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblRoomStatus">
+     <property name="text">
+      <string>等待对手加入...</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignmentFlag::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutCards" stretch="1,1">
+     <item>
+      <widget class="QFrame" name="cardHost">
+       <layout class="QVBoxLayout" name="verticalLayoutHost" stretch="0,0,0,1,0">
+        <item>
+         <widget class="QLabel" name="lblHostAvatar">
+          <property name="minimumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+            border-radius: 40px;
+            background-color: #4A6CF7;
+            image: url(:/res/avatar_host.png); /* 替换为实际头像路径 */
+           </string>
+          </property>
+          <property name="scaledContents">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblHostTitle">
+          <property name="text">
+           <string>房主</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblHostId">
+          <property name="text">
+           <string>玩家ID：player_123456</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblHostChess">
+          <property name="text">
+           <string>棋子：黑色</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblHostStatus">
+          <property name="text">
+           <string>已在线</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QFrame" name="cardOpponent">
+       <layout class="QVBoxLayout" name="verticalLayoutOpponent" stretch="0,0,0,1,0">
+        <item>
+         <widget class="QLabel" name="lblOpponentAvatar">
+          <property name="minimumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>80</width>
+            <height>80</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+            border-radius: 40px;
+            background-color: #CCCCCC;
+            image: url(:/res/avatar_opponent.png); /* 替换为实际头像路径 */
+           </string>
+          </property>
+          <property name="scaledContents">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblOpponentTitle">
+          <property name="text">
+           <string>对手</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblOpponentId">
+          <property name="text">
+           <string>玩家ID：未加入</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblOpponentChess">
+          <property name="text">
+           <string>棋子：白色</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblOpponentStatus">
+          <property name="text">
+           <string>未在线</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutButtons" stretch="1,1,1">
+     <item>
+      <widget class="QPushButton" name="btnCopyRoomId">
+       <property name="text">
+        <string>复制房间号</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnStartGame">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="text">
+        <string>开始游戏</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnQuitRoom">
+       <property name="text">
+        <string>退出房间</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+--- FILE END: client\gomokuClient\onlineroomwidget.ui ---
+==============================
+
+--- FILE START: client\gomokuClient\pagemanager.cpp ---
+#include "pagemanager.h"
+
+PageManager::PageManager(QObject *parent)
+    : QObject{parent}
+{}
+
+PageManager* PageManager::pageManager = nullptr;
+QMutex PageManager::mutex;
+
+--- FILE END: client\gomokuClient\pagemanager.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\pagemanager.h ---
+#ifndef PAGEMANAGER_H
+#define PAGEMANAGER_H
+
+#include "SharedType.h"
+#include <QObject>
+#include <QMutex>
+#include <QMutexLocker>
+
+class PageManager : public QObject
+{
+    Q_OBJECT
+    // 单例工具类，为页面跳转提供统一接口
+    static PageManager* pageManager;
+    static QMutex mutex;
+public:
+    explicit PageManager(QObject *parent = nullptr);
+    static PageManager* instance()
+    {
+        if(!pageManager)
+        {
+            QMutexLocker locker(&mutex);
+            if(!pageManager)
+            {
+                pageManager = new PageManager();
+                return pageManager;
+            }
+        }
+        return pageManager;
+    }
+    void switchToPage(int i)
+    {
+        emit signal_switchToPage(i);
+    }
+    static void destroyInstance()
+    {
+        QMutexLocker locker(&mutex);
+        if(pageManager)
+        {
+            delete pageManager;
+            pageManager = nullptr;
+        }
+    }
+
+signals:
+    void signal_switchToPage(int index);
+    void signal_changeGamemode(GamemodeType gamemode);
+};
+
+#endif // PAGEMANAGER_H
+
+--- FILE END: client\gomokuClient\pagemanager.h ---
+==============================
+
+--- FILE START: client\gomokuClient\res.qrc ---
+<RCC>
+    <qresource prefix="/pic">
+        <file>res/picture/black_chess.png</file>
+        <file>res/picture/game_background.bmp</file>
+        <file>res/picture/white_chess.png</file>
+        <file>res/picture/loading.gif</file>
+    </qresource>
+</RCC>
+
+--- FILE END: client\gomokuClient\res.qrc ---
+==============================
+
+--- FILE START: client\gomokuClient\SharedType.h ---
+#ifndef SHAREDTYPE_H
+#define SHAREDTYPE_H
+
+#include <QMetaType>
+
+// 棋盘大小
+const int BOARD_SIZE = 15;
+//方向数组
+const int DIRS[8][2] = {{0,1},{1,0},{1,1},{-1,1},{0,-1},{-1,0},{-1,-1},{1,-1}};
+
+const QString WS_SERVER_URL = "ws://localhost:8080/gomoku/ws";
+// 在线玩家标识
+const QString ONLINE_PLAYER_BLACK = "BLACK";
+const QString ONLINE_PLAYER_WHITE = "WHITE";
+enum class ChessType
+{
+    EMPTY = 0,
+    BLACK = 1,
+    WHITE = 2
+};
+
+enum class AIType
+{
+    EASY =1,
+    NORMAL = 2,
+    HARD = 3
+};
+
+enum class GamemodeType
+{
+    OFFLINE_FREE = 0,
+    OFFLINE_AI_EASY = 1,
+    OFFLINE_AI_NORMAL = 2,
+    OFFLINE_AI_HARD = 3,
+    ONLINE = 4
+};
+
+namespace EnumUtils{
+    inline ChessType oppo(ChessType ct)
+    {
+        if(ct == ChessType::BLACK) return ChessType::WHITE;
+        else return ChessType::BLACK;
+    }
+}
+
+Q_DECLARE_METATYPE(ChessType)
+Q_DECLARE_METATYPE(AIType)
+Q_DECLARE_METATYPE(GamemodeType)
+
+#endif // SHAREDTYPE_H
+
+--- FILE END: client\gomokuClient\SharedType.h ---
+==============================
+
+--- FILE START: client\gomokuClient\startwidget.cpp ---
+#include "startwidget.h"
+#include "ui_startwidget.h"
+#include "pagemanager.h"
+
+StartWidget::StartWidget(QWidget *parent)
+    : QWidget(parent)
+    , ui(new Ui::StartWidget)
+{
+    ui->setupUi(this);
+}
+
+StartWidget::~StartWidget()
+{
+    delete ui;
+}
+
+void StartWidget::on_offlineButton_clicked()
+{
+    PageManager::instance()->switchToPage(1);
+}
+
+void StartWidget::on_quitButton_clicked()
+{
+    QApplication::quit();
+}
+
+
+void StartWidget::on_onlineButton_clicked()
+{
+    PageManager::instance()->switchToPage(2);
+}
+
+
+--- FILE END: client\gomokuClient\startwidget.cpp ---
+==============================
+
+--- FILE START: client\gomokuClient\startwidget.h ---
+#ifndef STARTWIDGET_H
+#define STARTWIDGET_H
+
+#include <QWidget>
+
+namespace Ui {
+class StartWidget;
+}
+
+class StartWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit StartWidget(QWidget *parent = nullptr);
+    ~StartWidget();
+
+private slots:
+    void on_offlineButton_clicked();
+
+    void on_quitButton_clicked();
+
+    void on_onlineButton_clicked();
+
+private:
+    Ui::StartWidget *ui;
+};
+
+#endif // STARTWIDGET_H
+
+--- FILE END: client\gomokuClient\startwidget.h ---
+==============================
+
+--- FILE START: client\gomokuClient\startwidget.ui ---
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>StartWidget</class>
+ <widget class="QWidget" name="StartWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>342</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>五子棋 - 开始界面</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    /* 全局基础样式 */
+    QWidget {
+     background-color: #F5F7FA;
+     font-family: &quot;Microsoft YaHei&quot;;
+     font-size: 14px;
+    }
+    /* 分组框样式：卡片化、圆角、阴影 */
+    QGroupBox#groupBox_3 {
+     border: none;
+     background-color: white;
+     border-radius: 12px;
+     margin-top: 10px;
+     padding-top: 20px;
+    }
+    /* 分组框标题（隐藏，保持布局） */
+    QGroupBox#groupBox_3::title {
+     subcontrol-origin: margin;
+     subcontrol-position: top center;
+     padding: 0 10px;
+     color: transparent;
+    }
+    /* 按钮通用样式 */
+    QPushButton {
+     border-radius: 8px;
+     border: none;
+     font-size: 15px;
+     height: 45px;
+     margin: 8px 15px;
+    }
+    /* 主功能按钮（离线/在线） */
+    QPushButton#offlineButton, QPushButton#onlineButton {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+     color: white;
+    }
+    QPushButton#offlineButton:hover, QPushButton#onlineButton:hover {
+     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
+    }
+    /* 次要按钮（退出） */
+    QPushButton#quitButton {
+     background-color: white;
+     color: #666666;
+     border: 1px solid #EEEEEE;
+     font-size: 12px;
+    }
+    QPushButton#quitButton:hover {
+     background-color: #F8F8F8;
+     color: #FF6B6B;
+     border-color: #FFE6E6;
+    }
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="1,3">
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <item>
+    <widget class="QWidget" name="widget" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayoutTitle">
+      <item>
+       <widget class="QLabel" name="lblGameTitle">
+        <property name="font">
+         <font>
+          <family>Microsoft YaHei</family>
+          <pointsize>-1</pointsize>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">color: #4A6CF7;</string>
+        </property>
+        <property name="text">
+         <string>五子棋Gomoku</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="widget_2" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayout" stretch="2,3,2">
+      <item>
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="groupBox_3">
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <property name="spacing">
+          <number>5</number>
+         </property>
+         <item>
+          <widget class="QPushButton" name="offlineButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>离线模式</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="onlineButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>在线游戏</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="quitButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <family>Microsoft YaHei</family>
+             <pointsize>-1</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>退出游戏</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+--- FILE END: client\gomokuClient\startwidget.ui ---
+==============================
+
+--- FILE START: service\gomokuService\HELP.md ---
+# Getting Started
+
+### Reference Documentation
+
+For further reference, please consider the following sections:
+
+* [Official Apache Maven documentation](https://maven.apache.org/guides/index.html)
+* [Spring Boot Maven Plugin Reference Guide](https://docs.spring.io/spring-boot/4.0.2/maven-plugin)
+* [Create an OCI image](https://docs.spring.io/spring-boot/4.0.2/maven-plugin/build-image.html)
+* [Spring Web](https://docs.spring.io/spring-boot/4.0.2/reference/web/servlet.html)
+* [WebSocket](https://docs.spring.io/spring-boot/4.0.2/reference/messaging/websockets.html)
+
+### Guides
+
+The following guides illustrate how to use some features concretely:
+
+* [Building a RESTful Web Service](https://spring.io/guides/gs/rest-service/)
+* [Serving Web Content with Spring MVC](https://spring.io/guides/gs/serving-web-content/)
+* [Building REST services with Spring](https://spring.io/guides/tutorials/rest/)
+* [Using WebSocket to build an interactive web application](https://spring.io/guides/gs/messaging-stomp-websocket/)
+
+### Maven Parent overrides
+
+Due to Maven's design, elements are inherited from the parent POM to the project POM.
+While most of the inheritance is fine, it also inherits unwanted elements like `<license>` and `<developers>` from the
+parent.
+To prevent this, the project POM contains empty overrides for these elements.
+If you manually switch to a different parent and actually want the inheritance, you need to remove those overrides.
+
+
+--- FILE END: service\gomokuService\HELP.md ---
+==============================
+
+--- FILE START: service\gomokuService\pom.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.2</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.elut1111</groupId>
+    <artifactId>gomokuService</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>gomokuService</name>
+    <description>gomokuService</description>
+    <url/>c
+    <licenses>
+        <license/>
+    </licenses>
+    <developers>
+        <developer/>
+    </developers>
+    <scm>
+        <connection/>
+        <developerConnection/>
+        <tag/>
+        <url/>
+    </scm>
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.13.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+
+--- FILE END: service\gomokuService\pom.xml ---
+==============================
+
+--- FILE START: service\gomokuService\.mvn\wrapper\maven-wrapper.properties ---
+wrapperVersion=3.3.4
+distributionType=only-script
+distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.12/apache-maven-3.9.12-bin.zip
+
+--- FILE END: service\gomokuService\.mvn\wrapper\maven-wrapper.properties ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\GomokuServiceApplication.java ---
+package com.elut1111.gomokuservice;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class GomokuServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(GomokuServiceApplication.class, args);
+        System.out.println("五子棋服务端启动成功（Spring Boot 4.0.2）");
+        System.out.println("WebSocket端点：ws://localhost:8080/gomoku/ws");
+    }
+
+}
+
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\GomokuServiceApplication.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\config\WebSocketConfig.java ---
+package com.elut1111.gomokuservice.config;
+
+import com.elut1111.gomokuservice.handler.GomokuWebSocketHandler;
+import jakarta.annotation.Resource;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.socket.config.annotation.EnableWebSocket;
+import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
+import org.springframework.context.annotation.Bean;
+
+/**
+ * WebSocket核心配置
+ */
+@Configuration
+@EnableWebSocket
+public class WebSocketConfig implements WebSocketConfigurer {
+    @Resource
+    private GomokuWebSocketHandler gomokuWebSocketHandler; // 修正原有变量名
+
+    @Override
+    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+        // 注册WebSocket端点，兼容Qt客户端
+        registry.addHandler(gomokuWebSocketHandler, "/gomoku/ws")
+                .setAllowedOriginPatterns("*");
+    }
+
+    /**
+     * WebSocket超时配置，避免客户端长时间无操作断开
+     */
+    @Bean
+    public ServletServerContainerFactoryBean createWebSocketContainer() {
+        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
+        // 会话超时时间：30分钟
+        container.setMaxSessionIdleTimeout(1800000L);
+        // 最大消息大小：1024*1024字节
+        container.setMaxTextMessageBufferSize(1024 * 1024);
+        return container;
+    }
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\config\WebSocketConfig.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\dto\GomokuMessage.java ---
+package com.elut1111.gomokuservice.dto;
+
+import lombok.Data;
+
+/**
+ * 五子棋通信消息体（前后端统一JSON格式）
+ */
+@Data
+public class GomokuMessage {
+    /**
+     * 消息类型：
+     * CREATE_ROOM - 创建房间
+     * JOIN_ROOM   - 加入房间
+     * PLAYER_READY - 玩家准备
+     * START_GAME  - 开始游戏
+     * CHESS_MOVE  - 落子
+     * ROOM_INFO   - 房间信息推送
+     * GAME_OVER   - 游戏结束
+     * ERROR       - 错误提示
+     */
+    private String type;
+    // 房间ID
+    private String roomId;
+    // 玩家（BLACK/WHITE）
+    private String player;
+    // 落子坐标X
+    private Integer x;
+    // 落子坐标Y
+    private Integer y;
+    // 附加消息（错误/提示/胜负结果）
+    private String msg;
+    // 玩家会话ID
+    private String sessionId;
+    // 当前落子玩家颜色（BLACK/WHITE）
+    private String currentPlayer;
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\dto\GomokuMessage.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\entity\ChessBoard.java ---
+package com.elut1111.gomokuservice.entity;
+
+import lombok.Data;
+
+/**
+ * 棋盘实体（15*15，与Qt客户端一致）
+ */
+@Data
+public class ChessBoard {
+    /**
+     * 棋盘大小
+     */
+    public static final int BOARD_SIZE = 15;
+    /**
+     * 棋盘状态：0-空，1-黑棋，2-白棋
+     */
+    private int[][] board;
+    /**
+     * 落子总数
+     */
+    private int chessCount;
+
+    public ChessBoard() {
+        // 初始化空棋盘
+        this.board = new int[BOARD_SIZE][BOARD_SIZE];
+        this.chessCount = 0;
+        clearBoard();
+    }
+
+    /**
+     * 清空棋盘
+     */
+    public void clearBoard() {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                board[i][j] = 0;
+            }
+        }
+        chessCount = 0;
+    }
+
+    /**
+     * 落子校验：位置是否合法（越界/已有棋子）
+     */
+    public boolean checkChessPos(int x, int y) {
+        if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) {
+            return false;
+        }
+        return board[x][y] == 0;
+    }
+
+    /**
+     * 执行落子
+     * @param x 横坐标
+     * @param y 纵坐标
+     * @param color 棋子颜色：BLACK(1)/WHITE(2)
+     * @return 落子是否成功
+     */
+    public boolean placeChess(int x, int y, String color) {
+        if (!checkChessPos(x, y)) {
+            return false;
+        }
+        board[x][y] = "BLACK".equals(color) ? 1 : 2;
+        chessCount++;
+        return true;
+    }
+
+    /**
+     * 获取棋子颜色（反向转换）
+     */
+    public String getChessColor(int x, int y) {
+        if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) {
+            return null;
+        }
+        return board[x][y] == 1 ? "BLACK" : (board[x][y] == 2 ? "WHITE" : null);
+    }
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\entity\ChessBoard.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\entity\Player.java ---
+package com.elut1111.gomokuservice.entity;
+
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.web.socket.WebSocketSession;
+
+import java.io.Serializable;
+
+/**
+ * 玩家实体
+ */
+@Data
+public class Player implements Serializable {
+    /**
+     * 玩家颜色：BLACK/WHITE
+     */
+    @Setter
+    private String color;
+    /**
+     * 玩家WebSocket会话
+     */
+    @Setter
+    private WebSocketSession session;
+    /**
+     * 是否在线
+     */
+    private boolean online;
+
+    @Setter
+    @Getter
+    private boolean ready;
+
+    public Player(String color, WebSocketSession session) {
+        this.color = color;
+        this.session = session;
+        this.online = true;
+        this.ready = false;
+    }
+
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\entity\Player.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\entity\Room.java ---
+package com.elut1111.gomokuservice.entity;
+
+import lombok.Data;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+/**
+ * 房间实体
+ */
+@Data
+public class Room implements Serializable {
+    /**
+     * 房间ID（8位短ID）
+     */
+    private String roomId;
+    /**
+     * 房间状态：WAIT-等待对手，PLAYING-游戏中，END-游戏结束，CLOSE-房间关闭
+     */
+    private RoomStatus status;
+    /**
+     * 棋盘实例
+     */
+    private ChessBoard chessBoard;
+    /**
+     * 黑棋玩家
+     */
+    private Player blackPlayer;
+    /**
+     * 白棋玩家
+     */
+    private Player whitePlayer;
+    /**
+     * 当前落子玩家颜色
+     */
+    private String currentPlayer;
+
+    // 房间状态枚举
+    public enum RoomStatus {
+        WAIT, PLAYING, END, CLOSE
+    }
+
+    public Room() {
+        // 生成8位短房间ID
+        this.roomId = UUID.randomUUID().toString().substring(0, 8).toLowerCase();
+        this.status = RoomStatus.WAIT;
+        this.chessBoard = new ChessBoard();
+        // 黑棋先行
+        this.currentPlayer = "BLACK";
+    }
+
+    /**
+     * 获取房间内的对手玩家
+     */
+    public Player getOpponent(Player player) {
+        if ("BLACK".equals(player.getColor())) {
+            return whitePlayer;
+        } else {
+            return blackPlayer;
+        }
+    }
+
+    /**
+     * 切换当前落子玩家
+     */
+    public void switchCurrentPlayer() {
+        this.currentPlayer = "BLACK".equals(this.currentPlayer) ? "WHITE" : "BLACK";
+    }
+
+    /**
+     * 判断房间是否已满（2名玩家）
+     */
+    public boolean isFull() {
+        return blackPlayer != null && whitePlayer != null;
+    }
+
+    /**
+     * 判断玩家是否在房间内
+     */
+    public boolean isPlayerInRoom(String sessionId) {
+        return (blackPlayer != null && blackPlayer.getSession().getId().equals(sessionId))
+                || (whitePlayer != null && whitePlayer.getSession().getId().equals(sessionId));
+    }
+
+    /**
+     * 判断双方是否准备完毕
+     */
+    public boolean isAllReady() {
+        return blackPlayer != null && blackPlayer.isReady() &&
+                whitePlayer != null && whitePlayer.isReady();
+    }
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\entity\Room.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\handler\GomokuWebSocketHandler.java ---
+package com.elut1111.gomokuservice.handler;
+
+import com.elut1111.gomokuservice.dto.GomokuMessage;
+import com.elut1111.gomokuservice.entity.ChessBoard;
+import com.elut1111.gomokuservice.entity.Player;
+import com.elut1111.gomokuservice.entity.Room;
+import com.elut1111.gomokuservice.manager.RoomManager;
+import com.elut1111.gomokuservice.util.FiveInLineCheckUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * 五子棋WebSocket业务处理器
+ */
+@Slf4j
+@Component
+public class GomokuWebSocketHandler extends TextWebSocketHandler {
+    // 在线会话缓存
+    private static final Map<String, WebSocketSession> ONLINE_SESSIONS = new ConcurrentHashMap<>();
+    // JSON解析器
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    // 注入房间管理器
+    @Resource
+    private RoomManager roomManager;
+
+    /**
+     * 客户端连接成功
+     */
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        ONLINE_SESSIONS.put(session.getId(), session);
+        log.info("客户端连接成功，会话ID：{}，当前在线数：{}", session.getId(), ONLINE_SESSIONS.size());
+    }
+
+    /**
+     * 处理客户端发送的消息
+     */
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        try {
+            // 解析客户端JSON消息
+            String payload = message.getPayload();
+            GomokuMessage gomokuMsg = objectMapper.readValue(payload, GomokuMessage.class);
+            gomokuMsg.setSessionId(session.getId()); // 绑定会话ID（保留原有）
+            log.info("接收客户端消息：{}，会话ID：{}", payload, session.getId());
+
+            // 根据消息类型分发处理
+            switch (gomokuMsg.getType()) {
+                case "CREATE_ROOM" -> handleCreateRoom(session, gomokuMsg);
+                case "JOIN_ROOM" -> handleJoinRoom(session, gomokuMsg);
+                case "CHESS_MOVE" -> handleChessMove(session, gomokuMsg);
+                case "PLAYER_READY" -> handlePlayerReady(session, gomokuMsg);
+                case "START_GAME" -> handleStartGame(session, gomokuMsg);
+                default -> {
+                    log.warn("未知消息类型：{}，会话ID：{}", gomokuMsg.getType(), session.getId());
+                    sendErrorMsg(session, "未知消息类型：" + gomokuMsg.getType());
+                }
+            }
+        } catch (Exception e) {
+            log.error("处理客户端消息异常，会话ID：{}，异常信息：{}", session.getId(), e.getMessage(), e);
+            sendErrorMsg(session, "消息解析失败，请检查格式");
+        }
+    }
+
+    /**
+     * 客户端断开连接
+     */
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) throws Exception {
+        String sessionId = session.getId();
+        ONLINE_SESSIONS.remove(sessionId);
+        roomManager.removeSession(session); // 清理房间关联
+        log.info("客户端断开连接，会话ID：{}，当前在线数：{}", sessionId, ONLINE_SESSIONS.size());
+
+        // 通知对手：玩家掉线
+        String roomId = roomManager.getRoomIdBySessionId(sessionId);
+        if (roomId != null) {
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                GomokuMessage msg = new GomokuMessage();
+                msg.setType("GAME_OVER");
+                msg.setMsg("对手已掉线，游戏结束！");
+                sendMsgToSession(opponent, msg);
+            }
+        }
+    }
+
+    /**
+     * 处理创建房间
+     */
+    private void handleCreateRoom(WebSocketSession session, GomokuMessage msg) {
+        try {
+            // 避免重复创建房间
+            if (roomManager.getRoomIdBySessionId(session.getId()) != null) {
+                sendErrorMsg(session, "你已创建/加入房间，不可重复创建");
+                return;
+            }
+            String roomId = roomManager.createRoom(session);
+            // 构建响应消息
+            GomokuMessage resp = new GomokuMessage();
+            resp.setType("ROOM_INFO");
+            resp.setRoomId(roomId);
+            resp.setPlayer("BLACK"); // 创建者默认执黑
+            resp.setMsg("房间创建成功，ID：" + roomId + "，等待对手加入");
+            // 发送给创建者
+            sendMsgToSession(session, resp);
+            log.info("[服务端] 房间创建成功，ID：{}", roomId);
+        } catch (Exception e) {
+            log.error("创建房间异常，会话ID：{}", session.getId(), e);
+            sendErrorMsg(session, "房间创建失败，请重试");
+        }
+    }
+
+    /**
+     * 处理加入房间
+     */
+    private void handleJoinRoom(WebSocketSession session, GomokuMessage msg) {
+        try {
+            String roomId = msg.getRoomId();
+            // 校验房间ID非空
+            if (roomId == null || roomId.trim().isEmpty()) {
+                sendErrorMsg(session, "房间ID不能为空");
+                return;
+            }
+            // 避免重复加入房间
+            if (roomManager.getRoomIdBySessionId(session.getId()) != null) {
+                sendErrorMsg(session, "你已创建/加入房间，不可重复加入");
+                return;
+            }
+            // 校验房间是否存在
+            if (!roomManager.existsRoom(roomId)) {
+                sendErrorMsg(session, "房间不存在：" + roomId);
+                return;
+            }
+            // 校验房间是否已满
+            if (roomManager.isRoomFull(roomId)) {
+                sendErrorMsg(session, "房间" + roomId + "已满，无法加入");
+                return;
+            }
+            // 加入房间
+            roomManager.joinRoom(roomId, session);
+            GomokuMessage resp = new GomokuMessage();
+            resp.setType("ROOM_INFO");
+            resp.setRoomId(roomId);
+            resp.setPlayer("WHITE"); // 加入者执白
+            resp.setMsg("成功加入房间：" + roomId + "，游戏开始！黑棋先行");
+            // 发送给加入者
+            sendMsgToSession(session, resp);
+
+            // 通知房间内的黑棋玩家（对手已加入）
+            WebSocketSession blackPlayer = roomManager.getOpponent(roomId, session);
+            if (blackPlayer != null && blackPlayer.isOpen()) {
+                GomokuMessage blackMsg = new GomokuMessage();
+                blackMsg.setType("ROOM_INFO");
+                blackMsg.setRoomId(roomId);
+                blackMsg.setMsg("对手已加入，你执黑棋先行！");
+                sendMsgToSession(blackPlayer, blackMsg);
+            }
+        } catch (Exception e) {
+            log.error("加入房间异常，会话ID：{}，房间ID：{}", session.getId(), msg.getRoomId(), e);
+            sendErrorMsg(session, "加入房间失败，请重试");
+        }
+    }
+
+    /**
+     * 处理落子，同步给对手（实现五子连珠判断、落子校验）
+     */
+    private void handleChessMove(WebSocketSession session, GomokuMessage msg) {
+        try {
+            String roomId = msg.getRoomId();
+            Integer x = msg.getX();
+            Integer y = msg.getY();
+            String playerColor = msg.getPlayer();
+
+            // 1. 基础参数校验
+            if (roomId == null || x == null || y == null || playerColor == null) {
+                sendErrorMsg(session, "落子参数不完整");
+                return;
+            }
+            // 2. 校验是否在房间内
+            if (!roomManager.isInRoom(roomId, session)) {
+                sendErrorMsg(session, "你未加入房间：" + roomId);
+                return;
+            }
+            // 3. 获取房间实体，校验房间状态
+            Room room = roomManager.getRoomByRoomId(roomId);
+            if (room == null || room.getStatus() != Room.RoomStatus.PLAYING) {
+                sendErrorMsg(session, "房间未开始游戏或已结束");
+                return;
+            }
+            // 4. 校验是否为当前落子玩家
+            if (!playerColor.equals(room.getCurrentPlayer())) {
+                sendErrorMsg(session, "非当前玩家，禁止落子");
+                return;
+            }
+            // 5. 校验棋盘位置是否合法
+            ChessBoard chessBoard = room.getChessBoard();
+            if (!chessBoard.checkChessPos(x, y)) {
+                sendErrorMsg(session, "落子位置非法（越界/已有棋子）");
+                return;
+            }
+
+            // 6. 执行落子，更新棋盘状态
+            boolean placeSuccess = chessBoard.placeChess(x, y, playerColor);
+            if (!placeSuccess) {
+                sendErrorMsg(session, "落子失败，请重试");
+                return;
+            }
+
+            // 7. 同步落子消息给对手
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                sendMsgToSession(opponent, msg);
+            }
+
+            // 8. 五子连珠胜负判断
+            boolean isWin = FiveInLineCheckUtil.checkFiveInLine(x, y, playerColor, chessBoard);
+            if (isWin) {
+                GomokuMessage winMsg = new GomokuMessage();
+                winMsg.setType("GAME_OVER");
+                winMsg.setRoomId(roomId);
+                winMsg.setMsg(playerColor + "方获胜！五子连珠！");
+                // 通知双方游戏结束
+                sendMsgToSession(session, winMsg);
+                if (opponent != null && opponent.isOpen()) {
+                    sendMsgToSession(opponent, winMsg);
+                }
+                // 销毁房间
+                roomManager.destroyRoom(roomId);
+                return;
+            }
+
+            // 9. 校验是否平局（棋盘下满）
+            if (chessBoard.getChessCount() >= ChessBoard.BOARD_SIZE * ChessBoard.BOARD_SIZE) {
+                GomokuMessage drawMsg = new GomokuMessage();
+                drawMsg.setType("GAME_OVER");
+                drawMsg.setRoomId(roomId);
+                drawMsg.setMsg("棋盘下满，双方平局！");
+                sendMsgToSession(session, drawMsg);
+                if (opponent != null && opponent.isOpen()) {
+                    sendMsgToSession(opponent, drawMsg);
+                }
+                roomManager.destroyRoom(roomId);
+                return;
+            }
+
+            // 10. 切换当前落子玩家
+            room.switchCurrentPlayer();
+
+        } catch (Exception e) {
+            log.error("落子处理异常，会话ID：{}，房间ID：{}", session.getId(), msg.getRoomId(), e);
+            sendErrorMsg(session, "落子失败，服务端异常");
+        }
+    }
+
+    /**
+     * 发送消息给指定会话（保留方法名，增加IO异常捕获）
+     */
+    private void sendMsgToSession(WebSocketSession session, GomokuMessage msg) {
+        try {
+            if (session.isOpen()) {
+                String json = objectMapper.writeValueAsString(msg);
+                session.sendMessage(new TextMessage(json));
+                log.info("发送消息给客户端：{}，会话ID：{}", json, session.getId());
+            }
+        } catch (IOException e) {
+            log.error("发送消息异常，会话ID：{}", session.getId(), e);
+        }
+    }
+
+    /**
+     * 发送错误消息
+     */
+    private void sendErrorMsg(WebSocketSession session, String errorMsg) {
+        GomokuMessage msg = new GomokuMessage();
+        msg.setType("ERROR");
+        msg.setMsg(errorMsg);
+        sendMsgToSession(session, msg);
+    }
+
+    /**
+     * 处理玩家点击准备
+     */
+    private void handlePlayerReady(WebSocketSession session, GomokuMessage msg) {
+        String roomId = roomManager.getRoomIdBySessionId(session.getId());
+        if (roomId == null) return;
+        Room room = roomManager.getRoomByRoomId(roomId);
+        Player player = roomManager.getPlayerBySession(room, session);
+        if (player != null) {
+            player.setReady(true);
+
+            // 通知房主（对手已准备）
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                GomokuMessage notify = new GomokuMessage();
+                notify.setType("ROOM_INFO");
+                notify.setRoomId(roomId);
+                notify.setPlayer("OPPONENT_READY");
+                notify.setMsg("对手已准备，可以开始游戏！");
+                sendMsgToSession(opponent, notify);
+
+                GomokuMessage notify2 = new GomokuMessage();
+                notify2.setType("PLAYER_READY");
+                notify2.setRoomId(roomId);
+                notify2.setPlayer("OPPONENT_READY");
+                notify2.setMsg("启用开始游戏按钮！");
+                sendMsgToSession(opponent, notify2);
+            }
+
+            // 通知自己
+            GomokuMessage selfMsg = new GomokuMessage();
+            selfMsg.setType("ROOM_INFO");
+            selfMsg.setRoomId(roomId);
+            selfMsg.setPlayer("SELF_READY");
+            selfMsg.setMsg("已准备，等待房主开始游戏");
+            sendMsgToSession(session, selfMsg);
+        }
+    }
+
+    /**
+     * 处理房主开始游戏
+     */
+    private void handleStartGame(WebSocketSession session, GomokuMessage msg) {
+        String roomId = roomManager.getRoomIdBySessionId(session.getId());
+        if (roomId == null) return;
+        Room room = roomManager.getRoomByRoomId(roomId);
+        Player player = roomManager.getPlayerBySession(room, session);
+
+        if (player == null || !"BLACK".equals(player.getColor())) {
+            sendErrorMsg(session, "只有房主可以开始游戏");
+            return;
+        }
+        if (!room.isAllReady()) {
+            sendErrorMsg(session, "有玩家未准备，无法开始");
+            return;
+        }
+
+        room.setStatus(Room.RoomStatus.PLAYING);
+        GomokuMessage startMsg = new GomokuMessage();
+        startMsg.setType("GAME_START");
+        startMsg.setRoomId(roomId);
+        startMsg.setMsg("游戏开始！黑棋先行");
+
+        sendMsgToSession(session, startMsg);
+        WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+        if (opponent != null && opponent.isOpen()) {
+            sendMsgToSession(opponent, startMsg);
+        }
+    }
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\handler\GomokuWebSocketHandler.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\manager\RoomManager.java ---
+package com.elut1111.gomokuservice.manager;
+
+import com.elut1111.gomokuservice.entity.Player;
+import com.elut1111.gomokuservice.entity.Room;
+import org.springframework.stereotype.Component;
+import org.springframework.web.socket.WebSocketSession;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * 房间管理器（内存存储，后续可扩展Redis持久化）
+ */
+@Component
+public class RoomManager {
+    // 房间映射：key=roomId，value=Room实体
+    private static final Map<String, Room> ROOM_MAP = new ConcurrentHashMap<>();
+    // 会话-房间映射：key=sessionId，value=roomId
+    private static final Map<String, String> SESSION_ROOM_MAP = new ConcurrentHashMap<>();
+
+    /**
+     * 创建房间（返回8位短ID）
+     */
+    public String createRoom(WebSocketSession creator) {
+        Room room = new Room();
+        // 创建者为黑棋玩家
+        Player blackPlayer = new Player("BLACK", creator);
+        blackPlayer.setReady(true);
+        room.setBlackPlayer(blackPlayer);
+        // 存入房间映射
+        ROOM_MAP.put(room.getRoomId(), room);
+        // 绑定会话-房间
+        SESSION_ROOM_MAP.put(creator.getId(), room.getRoomId());
+        return room.getRoomId();
+    }
+
+    /**
+     * 加入房间
+     */
+    public void joinRoom(String roomId, WebSocketSession joiner) {
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null || room.getStatus() != Room.RoomStatus.WAIT) {
+            return;
+        }
+        // 加入者为白棋玩家
+        Player whitePlayer = new Player("WHITE", joiner);
+        room.setWhitePlayer(whitePlayer);
+        // 房间状态改为游戏中
+        room.setStatus(Room.RoomStatus.PLAYING);
+        // 绑定会话-房间
+        SESSION_ROOM_MAP.put(joiner.getId(), roomId);
+    }
+
+    /**
+     * 判断房间是否存在
+     */
+    public boolean existsRoom(String roomId) {
+        Room room = ROOM_MAP.get(roomId);
+        return room != null && room.getStatus() != Room.RoomStatus.CLOSE;
+    }
+
+    /**
+     * 判断房间是否已满
+     */
+    public boolean isRoomFull(String roomId) {
+        Room room = ROOM_MAP.get(roomId);
+        return room != null && room.isFull();
+    }
+
+    /**
+     * 获取房间内的对手会话
+     */
+    public WebSocketSession getOpponent(String roomId, WebSocketSession currentSession) {
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null || !room.isFull()) {
+            return null;
+        }
+        Player currentPlayer = getPlayerBySession(room, currentSession);
+        Player opponent = room.getOpponent(currentPlayer);
+        return opponent != null && opponent.isOnline() ? opponent.getSession() : null;
+    }
+
+    /**
+     * 判断会话是否在指定房间内
+     */
+    public boolean isInRoom(String roomId, WebSocketSession session) {
+        Room room = ROOM_MAP.get(roomId);
+        return room != null && room.isPlayerInRoom(session.getId());
+    }
+
+    /**
+     * 移除断开连接的会话，清理房间
+     */
+    public void removeSession(WebSocketSession session) {
+        String sessionId = session.getId();
+        String roomId = SESSION_ROOM_MAP.get(sessionId);
+        if (roomId == null) {
+            return;
+        }
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null) {
+            SESSION_ROOM_MAP.remove(sessionId);
+            return;
+        }
+
+        // 标记玩家为离线
+        Player player = getPlayerBySession(room, session);
+        if (player != null) {
+            player.setOnline(false);
+        }
+
+        // 房间状态改为关闭，清理映射
+        room.setStatus(Room.RoomStatus.CLOSE);
+        ROOM_MAP.remove(roomId);
+        // 清理该房间所有会话绑定
+        SESSION_ROOM_MAP.entrySet().removeIf(entry -> entry.getValue().equals(roomId));
+    }
+
+    /**
+     * 销毁房间
+     */
+    public void destroyRoom(String roomId) {
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null) {
+            return;
+        }
+        room.setStatus(Room.RoomStatus.CLOSE);
+        ROOM_MAP.remove(roomId);
+        // 清理会话-房间绑定
+        SESSION_ROOM_MAP.entrySet().removeIf(entry -> entry.getValue().equals(roomId));
+    }
+
+    /**
+     * 根据房间ID获取房间实体
+     */
+    public Room getRoomByRoomId(String roomId) {
+        return ROOM_MAP.get(roomId);
+    }
+
+    /**
+     * 根据会话获取玩家实体
+     */
+    public Player getPlayerBySession(Room room, WebSocketSession session) {
+        if (room.getBlackPlayer() != null && room.getBlackPlayer().getSession().getId().equals(session.getId())) {
+            return room.getBlackPlayer();
+        } else if (room.getWhitePlayer() != null && room.getWhitePlayer().getSession().getId().equals(session.getId())) {
+            return room.getWhitePlayer();
+        }
+        return null;
+    }
+
+    /**
+     * 根据会话ID获取所在房间ID
+     */
+    public String getRoomIdBySessionId(String sessionId) {
+        return SESSION_ROOM_MAP.get(sessionId);
+    }
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\manager\RoomManager.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\java\com\elut1111\gomokuservice\util\FiveInLineCheckUtil.java ---
+package com.elut1111.gomokuservice.util;
+
+import com.elut1111.gomokuservice.entity.ChessBoard;
+
+/**
+ * 五子连珠校验工具类
+ */
+public class FiveInLineCheckUtil {
+    /**
+     * 连珠胜利数
+     */
+    private static final int WIN_COUNT = 5;
+    /**
+     * 四个检测方向：右、下、右下、右上
+     */
+    private static final int[][] DIRS = {{0, 1}, {1, 0}, {1, 1}, {-1, 1}};
+
+    /**
+     * 校验是否五子连珠
+     * @param x 落子横坐标
+     * @param y 落子纵坐标
+     * @param color 落子颜色
+     * @param chessBoard 棋盘实例
+     * @return 是否胜利
+     */
+    public static boolean checkFiveInLine(int x, int y, String color, ChessBoard chessBoard) {
+        int chessValue = "BLACK".equals(color) ? 1 : 2;
+        int[][] board = chessBoard.getBoard();
+
+        // 遍历四个方向检测
+        for (int[] dir : DIRS) {
+            int count = 1;
+            int dx = dir[0];
+            int dy = dir[1];
+
+            // 正向检测
+            int nx = x + dx;
+            int ny = y + dy;
+            while (nx >= 0 && nx < ChessBoard.BOARD_SIZE && ny >= 0 && ny < ChessBoard.BOARD_SIZE
+                    && board[nx][ny] == chessValue) {
+                count++;
+                nx += dx;
+                ny += dy;
+            }
+
+            // 反向检测
+            nx = x - dx;
+            ny = y - dy;
+            while (nx >= 0 && nx < ChessBoard.BOARD_SIZE && ny >= 0 && ny < ChessBoard.BOARD_SIZE
+                    && board[nx][ny] == chessValue) {
+                count++;
+                nx -= dx;
+                ny -= dy;
+            }
+
+            // 达到五子连珠
+            if (count >= WIN_COUNT) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+--- FILE END: service\gomokuService\src\main\java\com\elut1111\gomokuservice\util\FiveInLineCheckUtil.java ---
+==============================
+
+--- FILE START: service\gomokuService\src\main\resources\application.properties ---
+spring.application.name=gomokuService
+server.port=8080
+spring.web.socket.servlet.enabled=true
+
+logging.level.com.elut111.gomokuservice=INFO
+logging.level.org.springframework.web.socket=INFO
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n
+
+server.tomcat.max-connections=1000
+server.tomcat.threads.max=200
+server.tomcat.accept-count=100
+--- FILE END: service\gomokuService\src\main\resources\application.properties ---
+==============================
+
+--- FILE START: service\gomokuService\src\test\java\com\elut1111\gomokuservice\GomokuServiceApplicationTests.java ---
+package com.elut1111.gomokuservice;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class GomokuServiceApplicationTests {
+
+    @Test
+    void contextLoads() {
+    }
+
+}
+
+--- FILE END: service\gomokuService\src\test\java\com\elut1111\gomokuservice\GomokuServiceApplicationTests.java ---
+==============================

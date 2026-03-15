@@ -1,0 +1,10 @@
+### WebSocket 测试
+WEBSOCKET ws://localhost:8080/gomoku/ws
+Content-Type: application/json
+
+{
+  "type": "CREATE_ROOM"
+}
+### Player_B
+WEBSOCKET ws://localhost:8080/gomoku/ws
+Content-Type: application/json

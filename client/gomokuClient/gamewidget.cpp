@@ -286,8 +286,11 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
     QWidget::mousePressEvent(event);
     if(currentGamemode == GamemodeType::ONLINE)
     {
-        // 判断当前玩家是否为人类在线玩家（避免重复点击）
-        if(!qobject_cast<OnlinePlayer*>(GameSession::instance()->currentPlayer))
+        extern QString g_myOnlineTag;
+        ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+
+        // 判断当前玩家是否为人类在线玩家
+        if(!GameSession::instance()->currentPlayer || GameSession::instance()->currentPlayer->getMyChessType() != myType)
         {
             return;
         }
@@ -371,7 +374,8 @@ void GameWidget::slot_switchTurn()
     // }
     //disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
     // connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,Qt::UniqueConnection);
-    if (qobject_cast<HumanPlayer*>(GameSession::instance()->currentPlayer)) {
+    if (qobject_cast<HumanPlayer*>(GameSession::instance()->currentPlayer) ||
+        qobject_cast<OnlinePlayer*>(GameSession::instance()->currentPlayer)) {
         connect(this,&GameWidget::signal_mouseClicked,
                 GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,
                 Qt::UniqueConnection);

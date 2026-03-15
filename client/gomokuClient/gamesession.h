@@ -66,6 +66,7 @@ signals:
     void signal_playerWin(AbstractPlayer* player);
     void sig_onlineGameOver(QString msg); // 在线游戏结束
     void sig_onlineError(QString msg);    // 在线错误提示
+    void sig_playerReadyChanged(bool currentState,QString msg);
 public slots:
     void slot_changeGamemode(GamemodeType gamemode);
     void slot_placeChess(int x,int y, ChessType chessType);

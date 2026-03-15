@@ -30,19 +30,66 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     // 绑定服务端房间信息信号→更新房间状态
     connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, [this](QString roomId, QString player, QString msg){
         Q_UNUSED(player);
+        ui->lblRoomId->setText(roomId);
         ui->lblRoomStatus->setText(msg);
-        // 对手加入后，启用开始游戏按钮
-        if(msg.contains("游戏开始"))
+    });
+
+    //监听玩家准备状态变更
+    connect(&NetworkManager::instance(), &NetworkManager::sig_playerReadyReceived, this, [this](bool currentState,QString msg){
+        if(g_myOnlineTag == "BLACK")
         {
-            ui->btnStartGame->setEnabled(true);
-            ui->lblRoomStatus->setText("对手已加入，点击开始游戏！");
+            if(currentState)
+            {
+                ui->btnStartGame->setEnabled(true);
+            }
+            else
+            {
+                ui->btnStartGame->setEnabled(false);
+            }
         }
+    });
+
+    // 监听游戏正式开始
+    connect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, [this](QString msg){
+        QMessageBox::information(this, "游戏开始", msg);
+        GameSession::instance()->slot_changeGamemode(GamemodeType::ONLINE);
+        ChessType myChessType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+        GameSession::instance()->setOnlinePlayerTag(myChessType, g_myOnlineTag);
+        PageManager::instance()->switchToPage(4);
     });
 }
 
 OnlineRoomWidget::~OnlineRoomWidget()
 {
     delete ui;
+}
+
+void OnlineRoomWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    ui->lblRoomId->setText(g_currentRoomId.trimmed().toLower());
+    ui->lblHostChess->setText("棋子：黑色");
+    ui->lblOpponentChess->setText("棋子：白色");
+
+    if (g_myOnlineTag == "BLACK") {
+        // 房主默认UI
+        ui->lblHostId->setText("我 (房主)");
+        ui->lblHostStatus->setText("已准备");
+        ui->lblOpponentId->setText("未加入");
+        ui->lblOpponentStatus->setText("未在线");
+        ui->btnStartGame->setText("开始游戏");
+        // ui->btnStartGame->setEnabled(false);
+        ui->lblRoomStatus->setText("等待对手加入...");
+    } else {
+        // 访客默认UI
+        ui->lblHostId->setText("房主");
+        ui->lblHostStatus->setText("已准备");
+        ui->lblOpponentId->setText("我 (已加入)");
+        ui->lblOpponentStatus->setText("未准备");
+        ui->btnStartGame->setText("准备");
+        ui->btnStartGame->setEnabled(true);
+        ui->lblRoomStatus->setText("成功加入房间，请点击准备");
+    }
 }
 
 void OnlineRoomWidget::on_btnQuitRoom_clicked()
@@ -64,14 +111,10 @@ void OnlineRoomWidget::on_btnCopyRoomId_clicked()
 
 void OnlineRoomWidget::on_btnStartGame_clicked()
 {
-    // 1. 设置游戏模式为在线
-    GameSession::instance()->slot_changeGamemode(GamemodeType::ONLINE);
-    // 2. 初始化在线玩家标识（对接服务端）
-    ChessType myChessType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
-    GameSession::instance()->setOnlinePlayerTag(myChessType, g_myOnlineTag);
-    // 3. 跳转到游戏页面
-    PageManager::instance()->switchToPage(4);
-    // 4. 禁用开始游戏按钮
-    ui->btnStartGame->setEnabled(false);
+    if (g_myOnlineTag == "BLACK") {
+        NetworkManager::instance().sendStartGameRequest(); // 房主点击触发开始
+    } else {
+        NetworkManager::instance().sendReadyRequest(); // 访客点击触发准备
+    }
 }
 

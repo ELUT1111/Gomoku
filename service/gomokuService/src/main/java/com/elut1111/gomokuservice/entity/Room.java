@@ -11,7 +11,7 @@ import java.util.UUID;
 @Data
 public class Room implements Serializable {
     /**
-     * 房间ID（8位短ID，与原有逻辑一致）
+     * 房间ID（8位短ID）
      */
     private String roomId;
     /**
@@ -41,11 +41,11 @@ public class Room implements Serializable {
     }
 
     public Room() {
-        // 生成8位短房间ID（与原有createRoom逻辑一致）
+        // 生成8位短房间ID
         this.roomId = UUID.randomUUID().toString().substring(0, 8).toLowerCase();
         this.status = RoomStatus.WAIT;
         this.chessBoard = new ChessBoard();
-        // 黑棋先行（五子棋规则）
+        // 黑棋先行
         this.currentPlayer = "BLACK";
     }
 
@@ -80,5 +80,13 @@ public class Room implements Serializable {
     public boolean isPlayerInRoom(String sessionId) {
         return (blackPlayer != null && blackPlayer.getSession().getId().equals(sessionId))
                 || (whitePlayer != null && whitePlayer.getSession().getId().equals(sessionId));
+    }
+
+    /**
+     * 判断双方是否准备完毕
+     */
+    public boolean isAllReady() {
+        return blackPlayer != null && blackPlayer.isReady() &&
+                whitePlayer != null && whitePlayer.isReady();
     }
 }

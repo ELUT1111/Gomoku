@@ -12,7 +12,7 @@ class AIPlayer : public AbstractPlayer
     Q_OBJECT
 public:
     explicit AIPlayer(QObject *parent = nullptr,ChessType chessType = ChessType::BLACK, AIType difficutify = AIType::EASY);
-    ~AIPlayer() override; // 新增析构，管理线程生命周期
+    ~AIPlayer() override;
     AIType getDifficulty() const;
     void setDifficulty(AIType newDifficulty);
 

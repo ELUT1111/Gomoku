@@ -15,6 +15,9 @@ public:
     explicit OnlineRoomWidget(QWidget *parent = nullptr);
     ~OnlineRoomWidget();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private slots:
     void on_btnQuitRoom_clicked();
 

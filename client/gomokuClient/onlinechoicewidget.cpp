@@ -15,9 +15,9 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
     ui->setupUi(this);
     NetworkManager::instance().connectToServer("ws://localhost:8080/gomoku/ws");
     // 绑定网络连接成功信号
-    connect(&NetworkManager::instance(), &NetworkManager::connected, this, [](){
-        QMessageBox::information(nullptr, "网络提示", "已成功连接到五子棋服务端！");
-    });
+    // connect(&NetworkManager::instance(), &NetworkManager::connected, this, [](){
+    //     QMessageBox::information(nullptr, "网络提示", "已成功连接到五子棋服务端！");
+    // });
     // 绑定网络错误信号
     connect(&NetworkManager::instance(), &NetworkManager::errorOccurred, this, [](QString msg){
         QMessageBox::warning(nullptr, "网络错误", msg);
@@ -39,16 +39,21 @@ void OnlineChoiceWidget::on_addRoomButton_clicked()
 {
     NetworkManager::instance().sendCreateRoom();
     // 绑定房间信息信号→跳转到房间页面
-    connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, [this](QString roomId, QString player, QString msg){
+    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
+    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
+                    [this, conn](QString roomId, QString player, QString msg){
         Q_UNUSED(player);
         Q_UNUSED(msg);
+
         qDebug() << "[OnlineChoice] 创建房间成功，ID：" << roomId;
-        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
-        // 传递房间ID给房间页面（通过全局变量/单例，此处用全局变量示例，可优化为单例）
+
+        // 传递房间ID给房间页面
         extern QString g_currentRoomId;
         g_currentRoomId = roomId.trimmed().toLower();
         extern QString g_myOnlineTag;
-        g_myOnlineTag = player;
+        g_myOnlineTag = "BLACK";
+
+        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
     });
 }
 
@@ -63,12 +68,18 @@ void OnlineChoiceWidget::on_JoinRoomButton_clicked()
     }
     NetworkManager::instance().sendJoinRoom(roomId);
     // 绑定房间信息信号→跳转到房间页面
-    connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, [this](QString roomId, QString player, QString msg){
+    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
+    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
+                    [this, conn](QString roomId, QString player, QString msg){
+
         Q_UNUSED(roomId);
         QMessageBox::information(this, "房间提示", msg);
-        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
+        extern QString g_currentRoomId;
+        g_currentRoomId = roomId.trimmed().toLower();
         extern QString g_myOnlineTag;
-        g_myOnlineTag = player;
+        g_myOnlineTag = "WHITE";
+
+        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
     });
 }
 

@@ -9,6 +9,9 @@ class AbstractPlayer : public QObject
     Q_OBJECT
 public:
     explicit AbstractPlayer(QObject *parent = nullptr, ChessType chessType = ChessType::BLACK);
+    ChessType getMyChessType() const;
+    void setMyChessType(ChessType newMyChessType);
+
 protected:
     ChessType myChessType;
 signals:

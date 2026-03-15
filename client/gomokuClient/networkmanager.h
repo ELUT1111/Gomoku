@@ -22,7 +22,8 @@ public:
     void sendJoinRoom(const QString& roomId); // 加入房间
     void sendChessMove(int x, int y, const QString& player); // 发送落子
     void sendMatchRequest();
-    void sendMove(int x, int y, int color);
+    void sendReadyRequest();
+    void sendStartGameRequest();
 
     QString getCurrentSessionId() { return m_sessionId; }
     bool isConnected() { return m_socket.state() == QAbstractSocket::ConnectedState; }
@@ -30,6 +31,9 @@ public:
 signals:
     void connected();
     void gameStarted(int myColor);    // 1为黑，2为白
+
+    void sig_playerReadyReceived(bool currentState,QString msg);
+    void sig_gameStartReceived(QString msg); // 游戏正式开始信号
     void moveReceived(int x, int y, int color);
     void errorOccurred(QString msg);
 
