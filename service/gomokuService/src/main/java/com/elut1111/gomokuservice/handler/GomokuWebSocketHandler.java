@@ -200,26 +200,16 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             }
             // 4. 校验是否为当前落子玩家
             if (!playerColor.equals(room.getCurrentPlayer())) {
-                sendErrorMsg(session, "非当前玩家，禁止落子");
+                sendErrorMsg(session, "请等待对方落子");
                 return;
             }
             // 5. 校验棋盘位置是否合法
             ChessBoard chessBoard = room.getChessBoard();
             if (!chessBoard.checkChessPos(x, y)) {
-                sendErrorMsg(session, "落子位置非法（越界/已有棋子）");
+                sendErrorMsg(session, "落子位置非法");
                 return;
             }
 
-            // 发送落子成功信息
-            GomokuMessage resp = new GomokuMessage();
-            resp.setType("PLACE_CHESS_STATUS");
-            resp.setX(x);
-            resp.setY(y);
-            resp.setRoomId(roomId);
-            resp.setPlayer(playerColor);
-            resp.setDecision(true);
-            sendMsgToSession(session, resp);
-            sendMsgToSession(roomManager.getOpponent(roomId,session),resp);
 
             // 6. 执行落子，更新棋盘状态
             boolean placeSuccess = chessBoard.placeChess(x, y, playerColor);
@@ -232,6 +222,19 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             WebSocketSession opponent = roomManager.getOpponent(roomId, session);
             if (opponent != null && opponent.isOpen()) {
                 sendMsgToSession(opponent, msg);
+            }
+
+            // 发送落子成功信息
+            GomokuMessage resp = new GomokuMessage();
+            resp.setType("PLACE_CHESS_STATUS");
+            resp.setX(x);
+            resp.setY(y);
+            resp.setRoomId(roomId);
+            resp.setPlayer(playerColor);
+            resp.setDecision(true);
+            sendMsgToSession(session, resp);
+            if (opponent != null) {
+                sendMsgToSession(opponent,resp);
             }
 
             // 8. 五子连珠胜负判断
