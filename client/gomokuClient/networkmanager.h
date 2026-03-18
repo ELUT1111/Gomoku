@@ -22,7 +22,7 @@ public:
     void sendJoinRoom(const QString& roomId); // 加入房间
     void sendChessMove(int x, int y, const QString& player); // 发送落子
     void sendMatchRequest();
-    void sendReadyRequest();
+    void sendReadyRequest(bool isReady);
     void sendStartGameRequest();
 
     QString getCurrentSessionId() { return m_sessionId; }
@@ -37,7 +37,9 @@ signals:
     void moveReceived(int x, int y, int color);
     void errorOccurred(QString msg);
 
+    void sig_joinSuccessReceived(QString roomId, QString player,QString msg);
     void sig_roomInfoReceived(QString roomId, QString player, QString msg); // 房间信息
+    void sig_placeChessStatusReceived(int x,int y,int color,bool status);
     void sig_gameOverReceived(QString msg); // 游戏结束
     void sig_errorReceived(QString msg); // 错误信息
 
@@ -49,7 +51,8 @@ private:
     QWebSocket m_socket;
     QString m_sessionId;
     QByteArray serializeMsg(const QString& type, const QString& roomId = "",
-                            const QString& player = "", int x = -1, int y = -1, const QString& msg = "");
+                            const QString& player = "", int x = -1, int y = -1, const QString& msg = "",
+                            bool decision = false);
 };
 
 #endif

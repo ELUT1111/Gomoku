@@ -16,7 +16,7 @@ void OnlinePlayer::slot_onMouseClicked(int x, int y)
     // 1. 发送落子信息到服务端
     m_netManager.sendChessMove(x, y, m_onlineTag);
     // 2. 触发本地绘子
-    emit signal_tryPlaceChess(x, y, myChessType);
+    //emit signal_tryPlaceChess(x, y, myChessType);
 }
 
 // 处理对手落子→触发本地绘子

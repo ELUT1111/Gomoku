@@ -87,6 +87,7 @@ public slots:
     void slot_undo();
     void slot_reset();
     void slot_drawChess(int x,int y,ChessType chessType);
+    void slot_drawChessForOnline(int x,int y,int color,bool status);
     void slot_switchTurn();
     void slot_playerWin(AbstractPlayer* player);
 };

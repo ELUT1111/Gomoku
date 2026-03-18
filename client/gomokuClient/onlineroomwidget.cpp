@@ -27,6 +27,7 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     }
     // 初始化：设置房间状态为「等待对手加入」
     ui->lblRoomStatus->setText("等待对手加入...");
+
     // 绑定服务端房间信息信号→更新房间状态
     connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, [this](QString roomId, QString player, QString msg){
         Q_UNUSED(player);
@@ -34,24 +35,44 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
         ui->lblRoomStatus->setText(msg);
     });
 
+    //监听玩家加入、退出
+    QSharedPointer<QMetaObject::Connection> conn2 = QSharedPointer<QMetaObject::Connection>::create();
+    *conn2 = connect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this,
+                     [this](QString roomId, QString player, QString msg){
+                         Q_UNUSED(roomId);
+                         Q_UNUSED(player);
+
+                        ui->lblOpponentId->setText("已加入");
+                        ui->lblRoomStatus->setText(msg);
+    });
+
     //监听玩家准备状态变更
     connect(&NetworkManager::instance(), &NetworkManager::sig_playerReadyReceived, this, [this](bool currentState,QString msg){
-        if(g_myOnlineTag == "BLACK")
+        if(currentState)
         {
-            if(currentState)
+            qDebug()<<g_myOnlineTag;
+            if(g_myOnlineTag == "BLACK")
             {
                 ui->btnStartGame->setEnabled(true);
             }
-            else
+            ui->lblOpponentStatus->setText("已准备");
+            ui->lblOpponentStatus->setStyleSheet("color: #4A6CF7");
+        }
+        else
+        {
+            if(g_myOnlineTag == "BLACK")
             {
                 ui->btnStartGame->setEnabled(false);
             }
+            ui->lblOpponentStatus->setText("未准备");
+            ui->lblOpponentStatus->setStyleSheet("color: #FF6B6B");
         }
+        ui->lblRoomStatus->setText(msg);
     });
 
     // 监听游戏正式开始
     connect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, [this](QString msg){
-        QMessageBox::information(this, "游戏开始", msg);
+        // QMessageBox::information(this, "游戏开始", msg);
         GameSession::instance()->slot_changeGamemode(GamemodeType::ONLINE);
         ChessType myChessType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
         GameSession::instance()->setOnlinePlayerTag(myChessType, g_myOnlineTag);
@@ -78,10 +99,10 @@ void OnlineRoomWidget::showEvent(QShowEvent *event)
         ui->lblOpponentId->setText("未加入");
         ui->lblOpponentStatus->setText("未在线");
         ui->btnStartGame->setText("开始游戏");
-        // ui->btnStartGame->setEnabled(false);
+        ui->btnStartGame->setEnabled(false);
         ui->lblRoomStatus->setText("等待对手加入...");
     } else {
-        // 访客默认UI
+        // 其他默认UI
         ui->lblHostId->setText("房主");
         ui->lblHostStatus->setText("已准备");
         ui->lblOpponentId->setText("我 (已加入)");
@@ -105,7 +126,7 @@ void OnlineRoomWidget::on_btnCopyRoomId_clicked()
 {
     QString roomId = ui->lblRoomId->text();
     QApplication::clipboard()->setText(roomId);
-    QMessageBox::information(this, "提示", "房间ID已复制到剪贴板！");
+    // QMessageBox::information(this, "提示", "房间ID已复制到剪贴板！");
 }
 
 
@@ -114,7 +135,29 @@ void OnlineRoomWidget::on_btnStartGame_clicked()
     if (g_myOnlineTag == "BLACK") {
         NetworkManager::instance().sendStartGameRequest(); // 房主点击触发开始
     } else {
-        NetworkManager::instance().sendReadyRequest(); // 访客点击触发准备
+        ready = !ready;
+        if(getReady())
+        {
+            ui->btnStartGame->setText("取消准备");
+            ui->btnStartGame->setStyleSheet("background-color: #FF6B6B");
+            NetworkManager::instance().sendReadyRequest(true); // 点击准备
+        }
+        else
+        {
+            ui->btnStartGame->setText("准备");
+            ui->btnStartGame->setStyleSheet("background-color: #4A6CF7;");
+            NetworkManager::instance().sendReadyRequest(false); //点击了取消准备
+        }
+
     }
 }
 
+bool OnlineRoomWidget::getReady() const
+{
+    return ready;
+}
+
+void OnlineRoomWidget::setReady(bool newReady)
+{
+    ready = newReady;
+}

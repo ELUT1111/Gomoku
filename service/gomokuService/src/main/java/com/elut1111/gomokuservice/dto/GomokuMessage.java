@@ -3,7 +3,7 @@ package com.elut1111.gomokuservice.dto;
 import lombok.Data;
 
 /**
- * 五子棋通信消息体（前后端统一JSON格式）
+ * 五子棋通信消息体
  */
 @Data
 public class GomokuMessage {
@@ -17,6 +17,9 @@ public class GomokuMessage {
      * ROOM_INFO   - 房间信息推送
      * GAME_OVER   - 游戏结束
      * ERROR       - 错误提示
+     * 单向信息：
+     * JOIN_SUCCESS -加入房间成功
+     * PLACE_CHESS_STATUS -落子请求返回的落子状态
      */
     private String type;
     // 房间ID
@@ -29,6 +32,8 @@ public class GomokuMessage {
     private Integer y;
     // 附加消息（错误/提示/胜负结果）
     private String msg;
+    // 附加bool量
+    private boolean decision;
     // 玩家会话ID
     private String sessionId;
     // 当前落子玩家颜色（BLACK/WHITE）

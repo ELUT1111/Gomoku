@@ -31,7 +31,8 @@ void NetworkManager::sendChessMove(int x, int y, const QString& player) {
         emit errorOccurred("未连接到服务端，落子失败");
         return;
     }
-    m_socket.sendTextMessage(serializeMsg("CHESS_MOVE", "", player, x, y));
+    extern QString g_currentRoomId;
+    m_socket.sendTextMessage(serializeMsg("CHESS_MOVE", g_currentRoomId, player, x, y));
 }
 
 // 网络断开
@@ -71,9 +72,15 @@ void NetworkManager::onTextMessageReceived(QString message) {
         QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();
         emit sig_roomInfoReceived(roomId, player, msg);
-    }else if (type == "PLAYER_READY") {
+    }else if(type == "JOIN_SUCCESS"){
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();
-        emit sig_playerReadyReceived(true, msg);
+        emit sig_joinSuccessReceived(roomId,player,msg);
+    }
+    else if (type == "PLAYER_READY") {
+        QString msg = obj["msg"].toString();
+        emit sig_playerReadyReceived(obj["decision"].toBool(), msg);
     }else if (type == "GAME_START") {
         QString msg = obj["msg"].toString();
         emit sig_gameStartReceived(msg);
@@ -82,7 +89,15 @@ void NetworkManager::onTextMessageReceived(QString message) {
         int y = obj["y"].toInt();
         int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
         emit moveReceived(x, y, color);
-    } else if (type == "GAME_OVER") {
+    }else if (type == "PLACE_CHESS_STATUS")
+    {
+        int x = obj["x"].toInt();
+        int y = obj["y"].toInt();
+        int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
+        bool status = obj["decision"].toBool();
+        emit sig_placeChessStatusReceived(x,y,color,status);
+    }
+    else if (type == "GAME_OVER") {
         QString msg = obj["msg"].toString();
         emit sig_gameOverReceived(msg);
     } else if (type == "ERROR") {
@@ -92,7 +107,7 @@ void NetworkManager::onTextMessageReceived(QString message) {
 }
 
 QByteArray NetworkManager::serializeMsg(const QString& type, const QString& roomId,
-                                        const QString& player, int x, int y, const QString& msg) {
+                                        const QString& player, int x, int y, const QString& msg, bool decision) {
     QJsonObject obj;
     obj["type"] = type;
     if(!roomId.isEmpty()) obj["roomId"] = roomId;
@@ -102,12 +117,16 @@ QByteArray NetworkManager::serializeMsg(const QString& type, const QString& room
         obj["y"] = y;
     }
     if(!msg.isEmpty()) obj["msg"] = msg;
+    obj["decision"] = decision;
     return QJsonDocument(obj).toJson(QJsonDocument::Compact);
 }
 
-void NetworkManager::sendReadyRequest() {
+void NetworkManager::sendReadyRequest(bool isReady) {
     if(!isConnected()) return;
-    m_socket.sendTextMessage(serializeMsg("PLAYER_READY"));
+    QJsonObject msg;
+    msg["type"] = "PLAYER_READY";
+    msg["decision"] = isReady;
+    m_socket.sendTextMessage(QJsonDocument(msg).toJson(QJsonDocument::Compact));
 }
 
 void NetworkManager::sendStartGameRequest() {

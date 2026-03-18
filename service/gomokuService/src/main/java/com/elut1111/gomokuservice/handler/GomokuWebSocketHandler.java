@@ -50,7 +50,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             // 解析客户端JSON消息
             String payload = message.getPayload();
             GomokuMessage gomokuMsg = objectMapper.readValue(payload, GomokuMessage.class);
-            gomokuMsg.setSessionId(session.getId()); // 绑定会话ID（保留原有）
+            gomokuMsg.setSessionId(session.getId()); // 绑定会话ID
             log.info("接收客户端消息：{}，会话ID：{}", payload, session.getId());
 
             // 根据消息类型分发处理
@@ -149,10 +149,10 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             // 加入房间
             roomManager.joinRoom(roomId, session);
             GomokuMessage resp = new GomokuMessage();
-            resp.setType("ROOM_INFO");
+            resp.setType("JOIN_SUCCESS");
             resp.setRoomId(roomId);
             resp.setPlayer("WHITE"); // 加入者执白
-            resp.setMsg("成功加入房间：" + roomId + "，游戏开始！黑棋先行");
+            resp.setMsg("成功加入房间：" + roomId);
             // 发送给加入者
             sendMsgToSession(session, resp);
 
@@ -160,9 +160,10 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             WebSocketSession blackPlayer = roomManager.getOpponent(roomId, session);
             if (blackPlayer != null && blackPlayer.isOpen()) {
                 GomokuMessage blackMsg = new GomokuMessage();
-                blackMsg.setType("ROOM_INFO");
+                blackMsg.setType("JOIN_SUCCESS");
                 blackMsg.setRoomId(roomId);
-                blackMsg.setMsg("对手已加入，你执黑棋先行！");
+                blackMsg.setMsg("对手已加入！");
+                blackMsg.setDecision(true);
                 sendMsgToSession(blackPlayer, blackMsg);
             }
         } catch (Exception e) {
@@ -208,6 +209,17 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 sendErrorMsg(session, "落子位置非法（越界/已有棋子）");
                 return;
             }
+
+            // 发送落子成功信息
+            GomokuMessage resp = new GomokuMessage();
+            resp.setType("PLACE_CHESS_STATUS");
+            resp.setX(x);
+            resp.setY(y);
+            resp.setRoomId(roomId);
+            resp.setPlayer(playerColor);
+            resp.setDecision(true);
+            sendMsgToSession(session, resp);
+            sendMsgToSession(roomManager.getOpponent(roomId,session),resp);
 
             // 6. 执行落子，更新棋盘状态
             boolean placeSuccess = chessBoard.placeChess(x, y, playerColor);
@@ -296,33 +308,36 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         Room room = roomManager.getRoomByRoomId(roomId);
         Player player = roomManager.getPlayerBySession(room, session);
         if (player != null) {
-            player.setReady(true);
+            boolean decision = msg.isDecision();
+            player.setReady(decision);
 
-            // 通知房主（对手已准备）
+            // 通知双方准备状态
             WebSocketSession opponent = roomManager.getOpponent(roomId, session);
             if (opponent != null && opponent.isOpen()) {
                 GomokuMessage notify = new GomokuMessage();
-                notify.setType("ROOM_INFO");
+                notify.setType("PLAYER_READY");
                 notify.setRoomId(roomId);
                 notify.setPlayer("OPPONENT_READY");
-                notify.setMsg("对手已准备，可以开始游戏！");
+                notify.setDecision(decision);
+                notify.setMsg(decision? "对手已准备，可以开始游戏！" : "等待对手准备游戏");
                 sendMsgToSession(opponent, notify);
 
                 GomokuMessage notify2 = new GomokuMessage();
                 notify2.setType("PLAYER_READY");
                 notify2.setRoomId(roomId);
                 notify2.setPlayer("OPPONENT_READY");
-                notify2.setMsg("启用开始游戏按钮！");
-                sendMsgToSession(opponent, notify2);
+                notify2.setMsg(decision? "已准备游戏":"尚未准备游戏");
+                notify2.setDecision(decision);
+                sendMsgToSession(session, notify2);
             }
 
             // 通知自己
-            GomokuMessage selfMsg = new GomokuMessage();
-            selfMsg.setType("ROOM_INFO");
-            selfMsg.setRoomId(roomId);
-            selfMsg.setPlayer("SELF_READY");
-            selfMsg.setMsg("已准备，等待房主开始游戏");
-            sendMsgToSession(session, selfMsg);
+//            GomokuMessage selfMsg = new GomokuMessage();
+//            selfMsg.setType("ROOM_INFO");
+//            selfMsg.setRoomId(roomId);
+//            selfMsg.setPlayer("SELF_READY");
+//            selfMsg.setMsg("已准备，等待房主开始游戏");
+//            sendMsgToSession(session, selfMsg);
         }
     }
 

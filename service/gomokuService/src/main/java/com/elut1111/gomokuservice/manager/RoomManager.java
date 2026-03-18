@@ -45,8 +45,6 @@ public class RoomManager {
         // 加入者为白棋玩家
         Player whitePlayer = new Player("WHITE", joiner);
         room.setWhitePlayer(whitePlayer);
-        // 房间状态改为游戏中
-        room.setStatus(Room.RoomStatus.PLAYING);
         // 绑定会话-房间
         SESSION_ROOM_MAP.put(joiner.getId(), roomId);
     }

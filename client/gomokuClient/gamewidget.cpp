@@ -57,22 +57,22 @@ void GameWidget::initUI()
     boardItem = new QGraphicsPixmapItem(boardPix);
     scene->addItem(boardItem);
 
-    // 1. 加载动画（GIF）
+    // 加载动画
     aiLoadingGif = new QLabel(this);
-    loadingMovie = new QMovie(":/pic/res/picture/loading.gif"); // 替换为你的 GIF 路径
+    loadingMovie = new QMovie(":/pic/res/picture/loading.gif");
     aiLoadingGif->setMovie(loadingMovie);
     aiLoadingGif->setFixedSize(100, 100); // 动画大小
     aiLoadingGif->setAlignment(Qt::AlignCenter);
     aiLoadingGif->setStyleSheet("background: transparent;");
     aiLoadingGif->hide();
 
-    // 2. 文本提示
+    // 文本提示
     aiThinkingLabel = new QLabel("AI 正在思考...", this);
     aiThinkingLabel->setStyleSheet("color: white; font-size: 16px; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 8px;");
     aiThinkingLabel->setAlignment(Qt::AlignCenter);
     aiThinkingLabel->hide();
 
-    // 3. 叠加到棋盘视图上
+    // 叠加到棋盘视图上
     aiLoadingGif->setParent(view);
     aiThinkingLabel->setParent(view);
 
@@ -95,20 +95,24 @@ void GameWidget::initConnect()
     connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo,Qt::UniqueConnection);
     connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode,Qt::UniqueConnection);
 
-    // 新增：绑定在线游戏结束信号
+    // 绑定在线游戏落子状态返回信号
+    connect(&NetworkManager::instance(),&NetworkManager::sig_placeChessStatusReceived,this,&GameWidget::slot_drawChessForOnline);
+    // 绑定在线游戏结束信号
     connect(GameSession::instance(), &GameSession::sig_onlineGameOver, this, [this](QString msg){
         QMessageBox::information(this, "游戏结束", msg);
         slot_reset();
     });
-    // 新增：绑定在线错误信号
+    // 绑定在线错误信号
     connect(GameSession::instance(), &GameSession::sig_onlineError, this, [this](QString msg){
         QMessageBox::warning(this, "在线错误", msg);
     });
     // 监听 AI 思考状态
     connect(GameSession::instance(), &GameSession::signal_switchTurn, this, [this]() {
+        if(GameSession::instance()->gamemode == GamemodeType::ONLINE) return;
+
         AIPlayer *ai = qobject_cast<AIPlayer*>(GameSession::instance()->currentPlayer);
         if (ai) {
-            // 连接 AI 思考信号（避免重复连接）
+            // 连接 AI 思考信号
             disconnect(ai, &AIPlayer::thinkStarted, this, nullptr);
             disconnect(ai, &AIPlayer::thinkFinished, this, nullptr);
 
@@ -134,7 +138,7 @@ void GameWidget::initConnect()
 
 void GameWidget::drawChess(int x, int y, ChessType chessType)
 {
-    if(boardData->getChess(x,y) != ChessType::EMPTY) return;
+    if(GameSession::instance()->gamemode != GamemodeType::ONLINE && boardData->getChess(x,y) != ChessType::EMPTY) return;
     qDebug()<<"[gameWidget] 绘子"<<x<<","<<y;
 
     // TODO
@@ -170,7 +174,16 @@ void GameWidget::drawChess(int x, int y, ChessType chessType)
 
 void GameWidget::undoForUI()
 {
+    if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
+    {
+        return;
+    }
+
     /*悔棋*/
+    if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
+    {
+        return; //待实现
+    }
     if(chessItems.isEmpty()) return;
     auto last = chessItems.takeLast();
     scene->removeItem(last);
@@ -196,9 +209,10 @@ void GameWidget::undoForUI()
 
 void GameWidget::clearBoardForUI()
 {
+
     if(currentGamemode == GamemodeType::ONLINE)
     {
-        QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
+        // QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
         return;
     }
     currentColor = 1;
@@ -284,22 +298,26 @@ void GameWidget::resizeEvent(QResizeEvent *event)
 void GameWidget::mousePressEvent(QMouseEvent *event)
 {
     QWidget::mousePressEvent(event);
-    if(currentGamemode == GamemodeType::ONLINE)
-    {
-        extern QString g_myOnlineTag;
-        ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
 
-        // 判断当前玩家是否为人类在线玩家
-        if(!GameSession::instance()->currentPlayer || GameSession::instance()->currentPlayer->getMyChessType() != myType)
-        {
-            return;
-        }
-    }
     if(event->button() == Qt::LeftButton)
     {
         QPoint grid = posToGrid(event->pos());
         int x = grid.x();
         int y = grid.y();
+        if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
+        {
+            extern QString g_myOnlineTag;
+            //ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+
+            NetworkManager::instance().sendChessMove(x,y,g_myOnlineTag);
+
+            // // 判断当前玩家是否为人类在线玩家
+            // if(!GameSession::instance()->currentPlayer || GameSession::instance()->currentPlayer->getMyChessType() != myType)
+            // {
+            //     return;
+            // }
+            return;
+        }
         if( boardData->getChess(x, y) == ChessType::EMPTY) // 空位
         {
             qDebug()<<grid;
@@ -364,8 +382,18 @@ void GameWidget::slot_drawChess(int x, int y, ChessType chessType)
     drawChess(x,y,chessType);
 }
 
+void GameWidget::slot_drawChessForOnline(int x, int y, int color, bool status)
+{
+    if(status)
+    {
+        drawChess(x , y, (ChessType)color);
+    }
+}
+
 void GameWidget::slot_switchTurn()
 {
+    if(currentGamemode == GamemodeType::ONLINE) return;
+
     //qDebug()<<"[gameWidget] 交换回合";
     disconnect(this, &GameWidget::signal_mouseClicked, nullptr, nullptr);
     // if(currentGamemode == GamemodeType::OFFLINE_FREE)

@@ -50,10 +50,10 @@ public:
     BoardDataPtr getBoardData() const { return boardData; }
 public:
     GamemodeType gamemode;
-    AbstractPlayer* player1;
-    AbstractPlayer* player2;
-    AbstractPlayer* currentPlayer; // 当前客户端真人玩家，接受UI的输入转发
-    AbstractPlayer* lastPlayer; // 离线自由练习模式下使用
+    AbstractPlayer* player1 = nullptr;
+    AbstractPlayer* player2 = nullptr;
+    AbstractPlayer* currentPlayer = nullptr; // 当前客户端真人玩家，接受UI的输入转发
+    AbstractPlayer* lastPlayer = nullptr; // 离线自由练习模式下使用
     OnlinePlayer* m_onlineBlackPlayer = nullptr; // 在线黑方
     OnlinePlayer* m_onlineWhitePlayer = nullptr; // 在线白方
     BoardDataPtr boardData;

@@ -1,6 +1,7 @@
 #ifndef ONLINEROOMWIDGET_H
 #define ONLINEROOMWIDGET_H
 
+#include <QLabel>
 #include <QWidget>
 
 namespace Ui {
@@ -14,6 +15,8 @@ class OnlineRoomWidget : public QWidget
 public:
     explicit OnlineRoomWidget(QWidget *parent = nullptr);
     ~OnlineRoomWidget();
+    bool getReady() const;
+    void setReady(bool newReady);
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -26,6 +29,8 @@ private slots:
     void on_btnStartGame_clicked();
 
 private:
+    bool ready = false;
+
     Ui::OnlineRoomWidget *ui;
 };
 

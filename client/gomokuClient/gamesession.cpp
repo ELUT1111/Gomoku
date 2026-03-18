@@ -38,29 +38,38 @@ void GameSession::initPlayer()
     if(player2) delete player2;
     player1 = nullptr;
     player2 = nullptr;
+    m_onlineBlackPlayer = nullptr;
+    m_onlineWhitePlayer = nullptr;
     if(gamemode == GamemodeType::OFFLINE_FREE)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
         player2 = new HumanPlayer(this,ChessType::WHITE);
+        currentPlayer = player1;
+        lastPlayer = player2;
     }else if(gamemode == GamemodeType::OFFLINE_AI_EASY)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
         player2 = new AIPlayer(this,ChessType::WHITE,AIType::EASY);
+        currentPlayer = player1;
+        lastPlayer = player2;
     }else if(gamemode == GamemodeType::OFFLINE_AI_NORMAL)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
         player2 = new AIPlayer(this,ChessType::WHITE,AIType::NORMAL);
+        currentPlayer = player1;
+        lastPlayer = player2;
     }else if(gamemode == GamemodeType::OFFLINE_AI_HARD)
     {
         player1 = new HumanPlayer(this,ChessType::BLACK);
         player2 = new AIPlayer(this,ChessType::WHITE,AIType::HARD);
+        currentPlayer = player1;
+        lastPlayer = player2;
     }
     else if(gamemode == GamemodeType::ONLINE)
     {
         m_onlineBlackPlayer = new OnlinePlayer(this, ChessType::BLACK);
         m_onlineWhitePlayer = new OnlinePlayer(this, ChessType::WHITE);
-        player1 = m_onlineBlackPlayer; // 与离线模式统一player1/player2
-        player2 = m_onlineWhitePlayer;
+
         // 绑定网络层的对手落子信号→在线玩家处理
         NetworkManager& netMgr = NetworkManager::instance();
         connect(&netMgr, &NetworkManager::moveReceived, this, &GameSession::slot_handleOpponentMove);
@@ -68,27 +77,24 @@ void GameSession::initPlayer()
         connect(&netMgr, &NetworkManager::sig_gameOverReceived, this, &GameSession::slot_handleOnlineGameOver);
 
         // 绑定网络层的错误信号→会话转发
-        // connect(&netMgr, &NetworkManager::sig_playerReadyReceived, this, [this](QString msg){
-        //     qDebug()<<"222";
-        //     emit sig_playerReadyChanged(true,msg);
-        // });
-        connect(&netMgr, &NetworkManager::sig_errorReceived, this, [this](QString msg){
-            emit sig_onlineError(msg);
-        });
+        connect(&netMgr, &NetworkManager::sig_errorReceived, this, &GameSession::sig_onlineError, Qt::UniqueConnection);
     }
 
-    currentPlayer = player1;
-    lastPlayer = player2;
 }
 
 void GameSession::initConnect()
 {
-    connect(player1,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
-    connect(player2,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
+    if( gamemode!= GamemodeType::ONLINE)
+    {
+        connect(player1,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
+        connect(player2,&AbstractPlayer::signal_tryPlaceChess,this,&GameSession::slot_placeChess,Qt::UniqueConnection);
+    }
 }
 
 void GameSession::resetTurn()
 {
+    if(gamemode == GamemodeType::ONLINE) return;
+
     currentPlayer = player1;
     lastPlayer = player2;
     emit signal_switchTurn();
@@ -96,6 +102,8 @@ void GameSession::resetTurn()
 
 bool GameSession::checkWin(int x, int y, ChessType chessType)
 {
+    if(gamemode == GamemodeType::ONLINE) return false;
+
     for(int i=0;i<4;i++)
     {
         //qDebug()<<boardData->numInRow(x,y,chessType,i);
@@ -125,9 +133,17 @@ void GameSession::slot_changeGamemode(GamemodeType gamemode)
 
 void GameSession::slot_placeChess(int x, int y, ChessType chessType)
 {
+
+
     qDebug()<<"[session] 落子: "<<x<<","<<y;
     emit signal_drawChess(x, y ,chessType);
     boardData->setChess(x, y, chessType);
+
+    if(gamemode == GamemodeType::ONLINE)
+    {
+        return;
+    }
+
     chessHistory.append(ChessHistory(QPoint(x,y),currentPlayer));
     if(checkWin(x,y,chessType))
     {
@@ -147,11 +163,16 @@ void GameSession::slot_resetGame()
     qDebug()<<"[session] 重置棋盘";
     boardData->clear();
     chessHistory.clear();
+
+    if(gamemode == GamemodeType::ONLINE) return;
+
     resetTurn();
 }
 
 void GameSession::slot_handleUndo()
 {
+    if(gamemode == GamemodeType::ONLINE) return;
+
     qDebug()<<"[session] 处理悔棋";
     if(chessHistory.isEmpty()) return;
     ChessHistory last = chessHistory.takeLast();
@@ -199,9 +220,6 @@ void GameSession::slot_handleOpponentMove(int x, int y, int color)
     {
         m_onlineBlackPlayer->slot_onOpponentMoveReceived(x, y, color);
     }
-    // 交换回合
-    std::swap(currentPlayer, lastPlayer);
-    emit signal_switchTurn();
 }
 
 // 处理在线游戏结束
