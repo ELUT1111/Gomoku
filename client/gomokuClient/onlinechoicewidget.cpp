@@ -5,7 +5,7 @@
 #include <QMessageBox>
 
 QString g_currentRoomId = "";
-QString g_myOnlineTag = "";
+QString g_myOnlineColor = "";
 
 
 OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
@@ -52,8 +52,8 @@ void OnlineChoiceWidget::on_addRoomButton_clicked()
         extern QString g_currentRoomId;
         g_currentRoomId = roomId.trimmed().toLower();
 
-        extern QString g_myOnlineTag;
-        g_myOnlineTag = "BLACK";
+        extern QString g_myOnlineColor;
+        g_myOnlineColor = "BLACK";
 
         PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
 
@@ -82,8 +82,8 @@ void OnlineChoiceWidget::on_JoinRoomButton_clicked()
         Q_UNUSED(player);
         extern QString g_currentRoomId;
         g_currentRoomId = roomId.trimmed().toLower();
-        extern QString g_myOnlineTag;
-        g_myOnlineTag = "WHITE";
+        extern QString g_myOnlineColor;
+        g_myOnlineColor = "WHITE";
 
         PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
     });

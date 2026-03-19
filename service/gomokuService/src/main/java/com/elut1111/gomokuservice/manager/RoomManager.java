@@ -2,6 +2,7 @@ package com.elut1111.gomokuservice.manager;
 
 import com.elut1111.gomokuservice.entity.Player;
 import com.elut1111.gomokuservice.entity.Room;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -11,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 房间管理器（内存存储，后续可扩展Redis持久化）
  */
+@Slf4j
 @Component
 public class RoomManager {
     // 房间映射：key=roomId，value=Room实体
@@ -126,6 +128,41 @@ public class RoomManager {
         ROOM_MAP.remove(roomId);
         // 清理会话-房间绑定
         SESSION_ROOM_MAP.entrySet().removeIf(entry -> entry.getValue().equals(roomId));
+    }
+
+    /**
+     * 玩家退出房间
+     */
+    public void quitRoom(WebSocketSession session, String roomId) {
+        String sessionId = session.getId();
+        Room room = ROOM_MAP.get(roomId);
+        if (room == null) return;
+
+        // 1. 移除会话-房间绑定
+        SESSION_ROOM_MAP.remove(sessionId);
+
+        // 2. 清空房间指定玩家
+        Player player = getPlayerBySession(room, session);
+        if (player != null) {
+            if ("BLACK".equals(player.getColor())) {
+                room.setBlackPlayer(null);
+            } else {
+                room.setWhitePlayer(null);
+            }
+        }
+
+        // 3. 房间无玩家 → 直接销毁
+        if (room.getBlackPlayer() == null && room.getWhitePlayer() == null) {
+            room.setStatus(Room.RoomStatus.CLOSE);
+            ROOM_MAP.remove(roomId);
+            log.info("[房间管理] 房间已销毁：{}", roomId);
+        } else {
+            // 剩余玩家 → 重置为等待状态
+            room.setStatus(Room.RoomStatus.WAIT);
+            room.setCurrentPlayer("BLACK");
+        }
+
+        log.info("[房间管理] 玩家退出清理完成：session={}, roomId={}", sessionId, roomId);
     }
 
     /**

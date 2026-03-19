@@ -25,6 +25,17 @@ void NetworkManager::sendJoinRoom(const QString& roomId) {
     m_socket.sendTextMessage(serializeMsg("JOIN_ROOM", roomId));
 }
 
+void NetworkManager::sendQuitRoomRequest()
+{
+    if(!isConnected()) return;
+    extern QString g_currentRoomId;
+    QJsonObject obj;
+    obj["type"] = "QUIT_ROOM";
+    obj["roomId"] = g_currentRoomId;
+    m_socket.sendTextMessage(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    qDebug() << "[Network] 发送退出房间请求：" << g_currentRoomId;
+}
+
 // 发送落子
 void NetworkManager::sendChessMove(int x, int y, const QString& player) {
     if(!isConnected()) {
@@ -77,11 +88,16 @@ void NetworkManager::onTextMessageReceived(QString message) {
         QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();
         emit sig_joinSuccessReceived(roomId,player,msg);
-    }
-    else if (type == "PLAYER_READY") {
+    }else if (type == "PLAYER_READY") {
         QString msg = obj["msg"].toString();
         emit sig_playerReadyReceived(obj["decision"].toBool(), msg);
-    }else if (type == "GAME_START") {
+    }else if(type == "QUIT_ROOM_SUCCESS"){
+        QString player = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        bool status = obj["decision"].toBool();
+        emit sig_quitRoomSuccessReceived(player,msg,status);
+    }
+    else if (type == "GAME_START") {
         QString msg = obj["msg"].toString();
         emit sig_gameStartReceived(msg);
     }else if (type == "CHESS_MOVE") {

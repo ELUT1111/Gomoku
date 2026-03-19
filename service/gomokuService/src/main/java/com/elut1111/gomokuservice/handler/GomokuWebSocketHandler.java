@@ -60,6 +60,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 case "CHESS_MOVE" -> handleChessMove(session, gomokuMsg);
                 case "PLAYER_READY" -> handlePlayerReady(session, gomokuMsg);
                 case "START_GAME" -> handleStartGame(session, gomokuMsg);
+                case "QUIT_ROOM" -> handleQuitRoom(session, gomokuMsg);
                 default -> {
                     log.warn("未知消息类型：{}，会话ID：{}", gomokuMsg.getType(), session.getId());
                     sendErrorMsg(session, "未知消息类型：" + gomokuMsg.getType());
@@ -169,6 +170,59 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         } catch (Exception e) {
             log.error("加入房间异常，会话ID：{}，房间ID：{}", session.getId(), msg.getRoomId(), e);
             sendErrorMsg(session, "加入房间失败，请重试");
+        }
+    }
+
+    private void handleQuitRoom(WebSocketSession session, GomokuMessage msg) {
+        try {
+            String sessionId = session.getId();
+            String roomId = roomManager.getRoomIdBySessionId(sessionId);
+            if (roomId == null) {
+                sendErrorMsg(session, "你未加入任何房间");
+                return;
+            }
+
+            Room room = roomManager.getRoomByRoomId(roomId);
+            if (room == null) return;
+
+            // 1. 获取对手玩家
+            WebSocketSession opponentSession = roomManager.getOpponent(roomId, session);
+            Player quitPlayer = roomManager.getPlayerBySession(room, session);
+
+            // 2. 通知对手：玩家已退出
+            if (opponentSession != null && opponentSession.isOpen()) {
+                GomokuMessage opponentMsg = new GomokuMessage();
+                opponentMsg.setType("QUIT_ROOM_SUCCESS");
+                opponentMsg.setRoomId(roomId);
+                opponentMsg.setDecision(true);
+                opponentMsg.setPlayer(quitPlayer.getColor());
+                // 游戏中退出 → 对手胜利；等待中退出 → 直接提示
+                if (room.getStatus() == Room.RoomStatus.PLAYING) {
+                    opponentMsg.setType("GAME_OVER");
+                    opponentMsg.setMsg(quitPlayer.getColor() + "玩家退出，你获胜！");
+                } else {
+                    opponentMsg.setMsg(quitPlayer.getColor() + "玩家已退出房间");
+                }
+                sendMsgToSession(opponentSession, opponentMsg);
+            }
+
+            // 3. 服务端清理房间+会话
+            roomManager.quitRoom(session, roomId);
+
+            // 4. 回复退出者：退出成功
+            GomokuMessage successMsg = new GomokuMessage();
+            successMsg.setType("QUIT_ROOM_SUCCESS");
+            successMsg.setRoomId(roomId);
+            successMsg.setMsg("成功退出房间");
+            successMsg.setPlayer(quitPlayer.getColor());
+            successMsg.setDecision(true);
+            sendMsgToSession(session, successMsg);
+
+            log.info("[服务端] 玩家退出房间：session={}, roomId={}", sessionId, roomId);
+
+        } catch (Exception e) {
+            log.error("退出房间异常：{}", e.getMessage(), e);
+            sendErrorMsg(session, "退出房间失败");
         }
     }
 
@@ -334,13 +388,6 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 sendMsgToSession(session, notify2);
             }
 
-            // 通知自己
-//            GomokuMessage selfMsg = new GomokuMessage();
-//            selfMsg.setType("ROOM_INFO");
-//            selfMsg.setRoomId(roomId);
-//            selfMsg.setPlayer("SELF_READY");
-//            selfMsg.setMsg("已准备，等待房主开始游戏");
-//            sendMsgToSession(session, selfMsg);
         }
     }
 
