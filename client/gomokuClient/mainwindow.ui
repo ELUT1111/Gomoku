@@ -90,7 +90,7 @@
     <item>
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
-       <number>3</number>
+       <number>5</number>
       </property>
       <widget class="QWidget" name="startPage">
        <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -117,6 +117,13 @@
        <layout class="QVBoxLayout" name="verticalLayout_8">
         <item>
          <layout class="QVBoxLayout" name="onlineRoomLayout"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="onlineRoomListPage">
+       <layout class="QVBoxLayout" name="verticalLayout_9">
+        <item>
+         <layout class="QVBoxLayout" name="onlineRoomListLayout"/>
         </item>
        </layout>
       </widget>

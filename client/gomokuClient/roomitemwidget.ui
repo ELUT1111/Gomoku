@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>RoomItemWidget</class>
+ <widget class="QWidget" name="RoomItemWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>750</width>
+    <height>90</height>
+   </rect>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+/* 主卡片：圆角、阴影、白底、悬浮高亮 */
+QWidget#RoomItemWidget {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    padding: 16px 20px;
+    border: 1px solid #F0F2F5;
+}
+QWidget#RoomItemWidget:hover {
+    border-color: #4A6CF7;
+    background-color: #FAFCFF;
+}
+/* 通用文字 */
+QLabel {
+    font-family: "Microsoft YaHei";
+    font-size: 15px;
+    color: #333333;
+}
+/* 房间号：加粗突出 */
+QLabel#lblRoomId {
+    font-size: 16px;
+    font-weight: bold;
+    color: #2A2A2A;
+    min-width: 180px;
+}
+/* 状态标签：带背景色的胶囊样式 */
+QLabel#lblStatus {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: bold;
+    min-width: 100px;
+}
+/* 人数标签 */
+QLabel#lblPlayerCount {
+    color: #666666;
+    min-width: 120px;
+}
+/* 加入按钮：主色渐变，强化交互 */
+QPushButton#btnJoin {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
+    color: white;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 24px;
+    border: none;
+    min-width: 100px;
+}
+QPushButton#btnJoin:hover:enabled {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
+}
+QPushButton#btnJoin:pressed {
+    padding: 9px 24px 7px;
+}
+QPushButton#btnJoin:disabled {
+    background: #CCCCCC;
+    color: #999999;
+}
+</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <property name="spacing">
+    <number>30</number>
+   </property>
+   <property name="leftMargin">
+    <number>20</number>
+   </property>
+   <property name="topMargin">
+    <number>12</number>
+   </property>
+   <property name="rightMargin">
+    <number>20</number>
+   </property>
+   <property name="bottomMargin">
+    <number>12</number>
+   </property>
+   <item>
+    <widget class="QLabel" name="lblRoomId">
+     <property name="text">
+      <string>房间号：</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblStatus">
+     <property name="text">
+      <string>等待中</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblPlayerCount">
+     <property name="text">
+      <string>人数：0/2</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="horizontalSpacer">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>40</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btnJoin">
+     <property name="text">
+      <string>加入房间</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

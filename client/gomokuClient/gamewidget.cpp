@@ -8,6 +8,7 @@
 #include <QMessageBox>
 #include <HumanPlayer.h>
 #include <QMovie>
+#include <OnlineSessionManager.h>
 
 GameWidget::GameWidget(QWidget *parent)
     : QWidget(parent)
@@ -306,10 +307,9 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
         int y = grid.y();
         if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
         {
-            extern QString g_myOnlineColor;
             //ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
 
-            NetworkManager::instance().sendChessMove(x,y,g_myOnlineColor);
+            NetworkManager::instance().sendChessMove(x,y,OnlineSessionManager::instance()->getMyOnlineColor());
 
             // // 判断当前玩家是否为人类在线玩家
             // if(!GameSession::instance()->currentPlayer || GameSession::instance()->currentPlayer->getMyChessType() != myType)

@@ -2,11 +2,8 @@
 #include "ui_onlinechoicewidget.h"
 #include "pagemanager.h"
 #include "NetworkManager.h"
+#include <OnlineSessionManager.h>
 #include <QMessageBox>
-
-QString g_currentRoomId = "";
-QString g_myOnlineColor = "";
-
 
 OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
     : QWidget(parent)
@@ -49,11 +46,9 @@ void OnlineChoiceWidget::on_addRoomButton_clicked()
         qDebug() << "[OnlineChoice] 创建房间成功，ID：" << roomId;
 
         // 传递房间ID给房间页面
-        extern QString g_currentRoomId;
-        g_currentRoomId = roomId.trimmed().toLower();
+        OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
 
-        extern QString g_myOnlineColor;
-        g_myOnlineColor = "BLACK";
+        OnlineSessionManager::instance()->setMyOnlineColor("BLACK");
 
         PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
 
@@ -80,11 +75,8 @@ void OnlineChoiceWidget::on_JoinRoomButton_clicked()
         QObject::disconnect(*conn);
         Q_UNUSED(msg);
         Q_UNUSED(player);
-        extern QString g_currentRoomId;
-        g_currentRoomId = roomId.trimmed().toLower();
-        extern QString g_myOnlineColor;
-        g_myOnlineColor = "WHITE";
-
+        OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
+        OnlineSessionManager::instance()->setMyOnlineColor("WHITE");
         PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
     });
 
@@ -93,5 +85,11 @@ void OnlineChoiceWidget::on_JoinRoomButton_clicked()
 void OnlineChoiceWidget::on_searchGameButton_clicked()
 {
     QMessageBox::information(this, "提示", "随机匹配功能正在开发中，敬请期待！");
+}
+
+
+void OnlineChoiceWidget::on_roomListButton_clicked()
+{
+    PageManager::instance()->switchToPage(4); // 4=房间列表
 }
 

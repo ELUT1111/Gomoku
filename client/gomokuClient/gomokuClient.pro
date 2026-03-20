@@ -22,8 +22,11 @@ SOURCES += \
     offlinechoicewidget.cpp \
     onlinechoicewidget.cpp \
     onlineplayer.cpp \
+    onlineroomlistwidget.cpp \
     onlineroomwidget.cpp \
+    onlinesessionmanager.cpp \
     pagemanager.cpp \
+    roomitemwidget.cpp \
     startwidget.cpp
 
 HEADERS += \
@@ -38,10 +41,14 @@ HEADERS += \
     mainwindow.h \
     networkmanager.h \
     offlinechoicewidget.h \
+    onlineRoomInfo.h \
     onlinechoicewidget.h \
     onlineplayer.h \
+    onlineroomlistwidget.h \
     onlineroomwidget.h \
+    onlinesessionmanager.h \
     pagemanager.h \
+    roomitemwidget.h \
     startwidget.h
 
 FORMS += \
@@ -49,7 +56,9 @@ FORMS += \
     mainwindow.ui \
     offlinechoicewidget.ui \
     onlinechoicewidget.ui \
+    onlineroomlistwidget.ui \
     onlineroomwidget.ui \
+    roomitemwidget.ui \
     startwidget.ui
 
 # Default rules for deployment.

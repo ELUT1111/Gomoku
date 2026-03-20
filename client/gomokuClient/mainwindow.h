@@ -19,6 +19,7 @@ public:
     QWidget* offlineChoiceWidget;
     QWidget* onlineChoiceWidget;
     QWidget* onlineRoomWidget;
+    QWidget* onlineRoomListWidget;
     QWidget* gameWidget;
 
     MainWindow(QWidget *parent = nullptr);

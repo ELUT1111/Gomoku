@@ -23,6 +23,8 @@ private slots:
     void on_JoinRoomButton_clicked();
 
     void on_searchGameButton_clicked();
+    void on_roomListButton_clicked();
+
 signals:
     void sig_opponentChanged(bool status);
 private:

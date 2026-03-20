@@ -18,10 +18,12 @@ public class GomokuMessage {
      * ROOM_INFO   - 房间信息推送
      * GAME_OVER   - 游戏结束
      * ERROR       - 错误提示
+     * REFRESH_ROOM_LIST  - 客户端请求刷新房间列表
      * 单向信息：
-     * JOIN_SUCCESS -加入房间成功
+     * JOIN_SUCCESS - 加入房间成功
+     * ROOM_LIST    - 服务端推送房间列表
      * QUIT_ROOM_SUCCESS - 退出房间成功
-     * PLACE_CHESS_STATUS -落子请求返回的落子状态
+     * PLACE_CHESS_STATUS - 落子请求返回的落子状态
      */
     private String type;
     // 房间ID

@@ -1,5 +1,7 @@
 #include "NetworkManager.h"
 
+#include <OnlineSessionManager.h>
+
 NetworkManager::NetworkManager(QObject *parent) : QObject(parent) {
     connect(&m_socket, &QWebSocket::connected, this, &NetworkManager::connected);
     connect(&m_socket, &QWebSocket::textMessageReceived, this, &NetworkManager::onTextMessageReceived);
@@ -28,12 +30,11 @@ void NetworkManager::sendJoinRoom(const QString& roomId) {
 void NetworkManager::sendQuitRoomRequest()
 {
     if(!isConnected()) return;
-    extern QString g_currentRoomId;
     QJsonObject obj;
     obj["type"] = "QUIT_ROOM";
-    obj["roomId"] = g_currentRoomId;
+    obj["roomId"] = OnlineSessionManager::instance()->getCurrentRoomId();
     m_socket.sendTextMessage(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-    qDebug() << "[Network] 发送退出房间请求：" << g_currentRoomId;
+    qDebug() << "[Network] 发送退出房间请求：" << OnlineSessionManager::instance()->getCurrentRoomId();
 }
 
 // 发送落子
@@ -42,8 +43,7 @@ void NetworkManager::sendChessMove(int x, int y, const QString& player) {
         emit errorOccurred("未连接到服务端，落子失败");
         return;
     }
-    extern QString g_currentRoomId;
-    m_socket.sendTextMessage(serializeMsg("CHESS_MOVE", g_currentRoomId, player, x, y));
+    m_socket.sendTextMessage(serializeMsg("CHESS_MOVE", OnlineSessionManager::instance()->getCurrentRoomId(), player, x, y));
 }
 
 // 网络断开
@@ -96,8 +96,16 @@ void NetworkManager::onTextMessageReceived(QString message) {
         QString msg = obj["msg"].toString();
         bool status = obj["decision"].toBool();
         emit sig_quitRoomSuccessReceived(player,msg,status);
-    }
-    else if (type == "GAME_START") {
+    }else if (type == "ROOM_LIST") {
+        QByteArray jsonData = obj["msg"].toString().toUtf8();
+        QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+        if (!doc.isArray()) {
+            qWarning() << "房间列表JSON格式错误";
+            return;
+        }
+        QJsonArray list = doc.array();
+        emit sig_roomListReceived(list);
+    }else if (type == "GAME_START") {
         QString msg = obj["msg"].toString();
         emit sig_gameStartReceived(msg);
     }else if (type == "CHESS_MOVE") {
@@ -105,21 +113,25 @@ void NetworkManager::onTextMessageReceived(QString message) {
         int y = obj["y"].toInt();
         int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
         emit moveReceived(x, y, color);
-    }else if (type == "PLACE_CHESS_STATUS")
-    {
+    }else if (type == "PLACE_CHESS_STATUS"){
         int x = obj["x"].toInt();
         int y = obj["y"].toInt();
         int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
         bool status = obj["decision"].toBool();
         emit sig_placeChessStatusReceived(x,y,color,status);
-    }
-    else if (type == "GAME_OVER") {
+    }else if (type == "GAME_OVER") {
         QString msg = obj["msg"].toString();
         emit sig_gameOverReceived(msg);
     } else if (type == "ERROR") {
         QString msg = obj["msg"].toString();
         emit sig_errorReceived(msg);
     }
+}
+
+void NetworkManager::sendRefreshRoomList()
+{
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("REFRESH_ROOM_LIST"));
 }
 
 QByteArray NetworkManager::serializeMsg(const QString& type, const QString& roomId,

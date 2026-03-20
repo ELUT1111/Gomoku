@@ -22,28 +22,28 @@ void OfflineChoiceWidget::on_returnButton_clicked()
 
 void OfflineChoiceWidget::on_freeButton_clicked()
 {
-    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->switchToPage(5);
     PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_FREE);
 }
 
 
 void OfflineChoiceWidget::on_easyButton_clicked()
 {
-    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->switchToPage(5);
     PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_AI_EASY);
 }
 
 
 void OfflineChoiceWidget::on_normalButton_clicked()
 {
-    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->switchToPage(5);
     PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_AI_NORMAL);
 }
 
 
 void OfflineChoiceWidget::on_hardButton_clicked()
 {
-    PageManager::instance()->switchToPage(4);
+    PageManager::instance()->switchToPage(5);
     PageManager::instance()->signal_changeGamemode(GamemodeType::OFFLINE_AI_HARD);
 }
 

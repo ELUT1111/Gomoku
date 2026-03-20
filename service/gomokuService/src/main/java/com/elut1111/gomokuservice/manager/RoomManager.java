@@ -1,11 +1,14 @@
 package com.elut1111.gomokuservice.manager;
 
+import com.elut1111.gomokuservice.dto.RoomDTO;
 import com.elut1111.gomokuservice.entity.Player;
 import com.elut1111.gomokuservice.entity.Room;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -189,5 +192,24 @@ public class RoomManager {
      */
     public String getRoomIdBySessionId(String sessionId) {
         return SESSION_ROOM_MAP.get(sessionId);
+    }
+    // 获取所有有效房间（非关闭状态）
+    public List<RoomDTO> getValidRoomList() {
+        List<RoomDTO> list = new ArrayList<>();
+        for (Map.Entry<String, Room> entry : ROOM_MAP.entrySet()) {
+            Room room = entry.getValue();
+            if (room.getStatus() == Room.RoomStatus.CLOSE) continue;
+            RoomDTO dto = new RoomDTO();
+            dto.setRoomId(room.getRoomId());
+            dto.setStatus(room.getStatus().name());
+            // 计算人数
+            int count = 0;
+            if (room.getBlackPlayer() != null) count++;
+            if (room.getWhitePlayer() != null) count++;
+            dto.setPlayerCount(count);
+            dto.setCreator("房主");
+            list.add(dto);
+        }
+        return list;
     }
 }

@@ -1,6 +1,7 @@
 package com.elut1111.gomokuservice.handler;
 
 import com.elut1111.gomokuservice.dto.GomokuMessage;
+import com.elut1111.gomokuservice.dto.RoomDTO;
 import com.elut1111.gomokuservice.entity.ChessBoard;
 import com.elut1111.gomokuservice.entity.Player;
 import com.elut1111.gomokuservice.entity.Room;
@@ -15,6 +16,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -61,6 +63,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 case "PLAYER_READY" -> handlePlayerReady(session, gomokuMsg);
                 case "START_GAME" -> handleStartGame(session, gomokuMsg);
                 case "QUIT_ROOM" -> handleQuitRoom(session, gomokuMsg);
+                case "REFRESH_ROOM_LIST" -> handleRefreshRoomList(session, gomokuMsg);
                 default -> {
                     log.warn("未知消息类型：{}，会话ID：{}", gomokuMsg.getType(), session.getId());
                     sendErrorMsg(session, "未知消息类型：" + gomokuMsg.getType());
@@ -297,7 +300,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 GomokuMessage winMsg = new GomokuMessage();
                 winMsg.setType("GAME_OVER");
                 winMsg.setRoomId(roomId);
-                winMsg.setMsg(playerColor + "方获胜！五子连珠！");
+                winMsg.setMsg(playerColor + "方获胜");
                 // 通知双方游戏结束
                 sendMsgToSession(session, winMsg);
                 if (opponent != null && opponent.isOpen()) {
@@ -421,4 +424,25 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             sendMsgToSession(opponent, startMsg);
         }
     }
+
+    /**
+     * 处理获取房间列表请求
+     * @param session
+     * @param msg
+     */
+    private void handleRefreshRoomList(WebSocketSession session, GomokuMessage msg) {
+        try {
+            List<RoomDTO> roomList = roomManager.getValidRoomList();
+            // 构建推送消息
+            GomokuMessage resp = new GomokuMessage();
+            resp.setType("ROOM_LIST");
+            resp.setMsg(objectMapper.writeValueAsString(roomList)); // 列表转JSON
+            sendMsgToSession(session, resp);
+            log.info("推送房间列表给客户端，数量：{}", roomList.size());
+        } catch (Exception e) {
+            log.error("推送房间列表异常", e);
+            sendErrorMsg(session, "获取房间列表失败");
+        }
+    }
+
 }

@@ -5,6 +5,7 @@
 #include <QtWebSockets/QWebSocket>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QUuid>
 
 class NetworkManager : public QObject {
@@ -21,6 +22,7 @@ public:
     void sendCreateRoom(); // 创建房间
     void sendJoinRoom(const QString& roomId); // 加入房间
     void sendQuitRoomRequest(); //退出房间
+    void sendRefreshRoomList(); // 刷新房间列表
     void sendChessMove(int x, int y, const QString& player); // 发送落子
     void sendMatchRequest();
     void sendReadyRequest(bool isReady);
@@ -40,6 +42,7 @@ signals:
 
     void sig_joinSuccessReceived(QString roomId, QString player,QString msg);
     void sig_roomInfoReceived(QString roomId, QString player, QString msg); // 房间信息
+    void sig_roomListReceived(QJsonArray roomList); // 房间列表信息
     void sig_quitRoomSuccessReceived(QString player,QString msg,bool status);
     void sig_placeChessStatusReceived(int x,int y,int color,bool status);
     void sig_gameOverReceived(QString msg); // 游戏结束

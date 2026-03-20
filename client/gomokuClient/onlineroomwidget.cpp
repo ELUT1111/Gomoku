@@ -6,11 +6,9 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QMessageBox>
+#include <OnlineSessionManager.h>
 #include "GameSession.h"
 
-// 全局变量（临时传递，后续可封装为配置单例，不修改现有标识符）
-extern QString g_currentRoomId;
-extern QString g_myOnlineColor;
 
 OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     : QWidget(parent)
@@ -19,9 +17,9 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     ui->setupUi(this);
 
     // 初始化：展示房间ID
-    if(!g_currentRoomId.isEmpty())
+    if(!OnlineSessionManager::instance()->getCurrentRoomId().isEmpty())
     {
-        QString displayRoomId = g_currentRoomId.trimmed().toLower();
+        QString displayRoomId = OnlineSessionManager::instance()->getCurrentRoomId().trimmed().toLower();
         ui->lblRoomId->setText(displayRoomId);
         qDebug() << "[OnlineRoom] 显示房间ID：" << displayRoomId;
     }
@@ -45,10 +43,11 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
                         ui->lblOpponentId->setText("已加入");
                         ui->lblRoomStatus->setText(msg);
     });
+
     QSharedPointer<QMetaObject::Connection> conn3 = QSharedPointer<QMetaObject::Connection>::create();
     *conn3 = connect(&NetworkManager::instance(),&NetworkManager::sig_quitRoomSuccessReceived,this,[this](QString player,QString msg,bool status)
         {
-        if(player == g_myOnlineColor)
+        if(player == OnlineSessionManager::instance()->getMyOnlineColor())
         {
             // 断开所有房间相关信号
             disconnect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, nullptr);
@@ -62,8 +61,8 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
             setReady(false); // 重置准备状态
 
             // 重置全局变量
-            g_currentRoomId = "";
-            g_myOnlineColor = "";
+            OnlineSessionManager::instance()->setCurrentRoomId("");
+            OnlineSessionManager::instance()->setMyOnlineColor("");
 
             // 跳回在线选择页面
             PageManager::instance()->switchToPage(2);
@@ -83,8 +82,8 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     connect(&NetworkManager::instance(), &NetworkManager::sig_playerReadyReceived, this, [this](bool currentState,QString msg){
         if(currentState)
         {
-            qDebug()<<g_myOnlineColor;
-            if(g_myOnlineColor == "BLACK")
+            qDebug()<<OnlineSessionManager::instance()->getMyOnlineColor();
+            if(OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK")
             {
                 ui->btnStartGame->setEnabled(true);
             }
@@ -93,7 +92,7 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
         }
         else
         {
-            if(g_myOnlineColor == "BLACK")
+            if(OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK")
             {
                 ui->btnStartGame->setEnabled(false);
             }
@@ -107,9 +106,9 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     connect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, [this](QString msg){
         // QMessageBox::information(this, "游戏开始", msg);
         GameSession::instance()->slot_changeGamemode(GamemodeType::ONLINE);
-        ChessType myChessType = (g_myOnlineColor == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
-        GameSession::instance()->setOnlinePlayerTag(myChessType, g_myOnlineColor);
-        PageManager::instance()->switchToPage(4);
+        ChessType myChessType = (OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+        GameSession::instance()->setOnlinePlayerTag(myChessType, OnlineSessionManager::instance()->getMyOnlineColor());
+        PageManager::instance()->switchToPage(5);
     });
 }
 
@@ -120,12 +119,13 @@ OnlineRoomWidget::~OnlineRoomWidget()
 
 void OnlineRoomWidget::showEvent(QShowEvent *event)
 {
+    qDebug()<<OnlineSessionManager::instance()->getMyOnlineColor();
     QWidget::showEvent(event);
-    ui->lblRoomId->setText(g_currentRoomId.trimmed().toLower());
+    ui->lblRoomId->setText(OnlineSessionManager::instance()->getCurrentRoomId().trimmed().toLower());
     ui->lblHostChess->setText("棋子：黑色");
     ui->lblOpponentChess->setText("棋子：白色");
 
-    if (g_myOnlineColor == "BLACK") {
+    if (OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK") {
         // 房主默认UI
         ui->lblHostId->setText("我 (房主)");
         ui->lblHostStatus->setText("已准备");
@@ -164,7 +164,7 @@ void OnlineRoomWidget::on_btnCopyRoomId_clicked()
 
 void OnlineRoomWidget::on_btnStartGame_clicked()
 {
-    if (g_myOnlineColor == "BLACK") {
+    if (OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK") {
         NetworkManager::instance().sendStartGameRequest(); // 房主点击触发开始
     } else {
         ready = !ready;
