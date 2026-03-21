@@ -2,6 +2,7 @@
 #include "ui_onlineroomlistwidget.h"
 #include "NetworkManager.h"
 #include "pagemanager.h"
+#include <OnlineSessionManager.h>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -19,6 +20,22 @@ OnlineRoomListWidget::OnlineRoomListWidget(QWidget *parent)
     ui->lblEmptyTip->hide();
     // 首次自动刷新
     on_btnRefresh_clicked();
+
+    connect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this,
+            [this](QString roomId, QString player, QString msg){
+
+                if (!this->isVisible()) return;
+
+                if(!player.isEmpty()) {
+                    // 设置全局 Session 信息
+                    OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
+                    OnlineSessionManager::instance()->setMyOnlineColor(player);
+
+                    // 跳转到房间页面
+                    PageManager::instance()->switchToPage(3);
+                }
+            });
+
 }
 
 OnlineRoomListWidget::~OnlineRoomListWidget()
@@ -83,12 +100,6 @@ void OnlineRoomListWidget::addRoomItem(const QString &roomId, const QString &sta
 void OnlineRoomListWidget::slotJoinRoom(QString roomId)
 {
     NetworkManager::instance().sendJoinRoom(roomId);
-    // 绑定加入成功→跳转到房间页面
-    QMetaObject::Connection conn = connect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this,
-                                           [this, conn](QString roomId, QString player, QString msg){
-                                               QObject::disconnect(conn);
-                                               PageManager::instance()->switchToPage(3); // 跳转到在线房间页
-                                           });
 }
 
 void OnlineRoomListWidget::clearRoomList()

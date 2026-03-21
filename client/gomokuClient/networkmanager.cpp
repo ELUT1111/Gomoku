@@ -62,9 +62,9 @@ void NetworkManager::sendCreateRoom() {
     qDebug() << "[Network] 发送创建房间请求";
 }
 
-void NetworkManager::sendMatchRequest() {
+void NetworkManager::sendRandomMatchRequest() {
     QJsonObject obj;
-    obj["type"] = "MATCH";
+    obj["type"] = "RANDOM_MATCH";
     m_socket.sendTextMessage(QJsonDocument(obj).toJson());
 }
 
@@ -160,4 +160,13 @@ void NetworkManager::sendReadyRequest(bool isReady) {
 void NetworkManager::sendStartGameRequest() {
     if(!isConnected()) return;
     m_socket.sendTextMessage(serializeMsg("START_GAME"));
+}
+
+void NetworkManager::sendCancelMatchRequest()
+{
+    if(!isConnected()) return;
+    QJsonObject obj;
+    obj["type"] = "CANCEL_MATCH";
+    m_socket.sendTextMessage(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    qDebug() << "[Network] 发送取消匹配请求";
 }

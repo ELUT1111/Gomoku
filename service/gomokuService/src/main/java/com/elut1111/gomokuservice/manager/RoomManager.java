@@ -23,6 +23,13 @@ public class RoomManager {
     // 会话-房间映射：key=sessionId，value=roomId
     private static final Map<String, String> SESSION_ROOM_MAP = new ConcurrentHashMap<>();
 
+    private static RoomManager instance;
+    public static RoomManager getInstance() {
+        if (instance == null) {
+            instance = new RoomManager();
+        }
+        return instance;
+    }
     /**
      * 创建房间（返回8位短ID）
      */
@@ -193,6 +200,17 @@ public class RoomManager {
     public String getRoomIdBySessionId(String sessionId) {
         return SESSION_ROOM_MAP.get(sessionId);
     }
+
+    public List<Room> getWaitAndNotFullRooms() {
+        List<Room> result = new ArrayList<>();
+        for (Room room : ROOM_MAP.values()) {
+            if (room.getStatus() == Room.RoomStatus.WAIT && !room.isFull()) {
+                result.add(room);
+            }
+        }
+        return result;
+    }
+
     // 获取所有有效房间（非关闭状态）
     public List<RoomDTO> getValidRoomList() {
         List<RoomDTO> list = new ArrayList<>();

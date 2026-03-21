@@ -11,6 +11,8 @@ public class GomokuMessage {
      * 消息类型：
      * CREATE_ROOM - 创建房间
      * JOIN_ROOM   - 加入房间
+     *  RANDOM_MATCH -随机匹配
+     *  CANCEL_MATCH -取消匹配
      * QUIT_ROOM   - 玩家退出
      * PLAYER_READY - 玩家准备
      * START_GAME  - 开始游戏

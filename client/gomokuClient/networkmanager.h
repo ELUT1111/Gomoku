@@ -24,9 +24,10 @@ public:
     void sendQuitRoomRequest(); //退出房间
     void sendRefreshRoomList(); // 刷新房间列表
     void sendChessMove(int x, int y, const QString& player); // 发送落子
-    void sendMatchRequest();
+    void sendRandomMatchRequest();
     void sendReadyRequest(bool isReady);
     void sendStartGameRequest();
+    void sendCancelMatchRequest(); // 取消匹配
 
     QString getCurrentSessionId() { return m_sessionId; }
     bool isConnected() { return m_socket.state() == QAbstractSocket::ConnectedState; }

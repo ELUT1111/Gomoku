@@ -5,6 +5,7 @@ import com.elut1111.gomokuservice.dto.RoomDTO;
 import com.elut1111.gomokuservice.entity.ChessBoard;
 import com.elut1111.gomokuservice.entity.Player;
 import com.elut1111.gomokuservice.entity.Room;
+import com.elut1111.gomokuservice.manager.MatchManager;
 import com.elut1111.gomokuservice.manager.RoomManager;
 import com.elut1111.gomokuservice.util.FiveInLineCheckUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,9 +32,10 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     // JSON解析器
     private final ObjectMapper objectMapper = new ObjectMapper();
     // 注入房间管理器
-    @Resource
-    private RoomManager roomManager;
+//    @Resource
+    private RoomManager roomManager = RoomManager.getInstance();
 
+    private MatchManager matchManager = MatchManager.getInstance();
     /**
      * 客户端连接成功
      */
@@ -64,6 +66,8 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 case "START_GAME" -> handleStartGame(session, gomokuMsg);
                 case "QUIT_ROOM" -> handleQuitRoom(session, gomokuMsg);
                 case "REFRESH_ROOM_LIST" -> handleRefreshRoomList(session, gomokuMsg);
+                case "RANDOM_MATCH" -> handleRandomMatch(session, gomokuMsg);
+                case "CANCEL_MATCH" -> handleCancelMatch(session, gomokuMsg);
                 default -> {
                     log.warn("未知消息类型：{}，会话ID：{}", gomokuMsg.getType(), session.getId());
                     sendErrorMsg(session, "未知消息类型：" + gomokuMsg.getType());
@@ -75,6 +79,14 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    private void handleCancelMatch(WebSocketSession session, GomokuMessage gomokuMsg) {
+        matchManager.removeFromMatchQueue(session);
+    }
+
+    private void handleRandomMatch(WebSocketSession session, GomokuMessage gomokuMsg) {
+        matchManager.addToMatchQueue(session);
+    }
+
     /**
      * 客户端断开连接
      */
@@ -82,6 +94,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) throws Exception {
         String sessionId = session.getId();
         ONLINE_SESSIONS.remove(sessionId);
+        matchManager.removeFromMatchQueue(session); // 清理排队队列
         roomManager.removeSession(session); // 清理房间关联
         log.info("客户端断开连接，会话ID：{}，当前在线数：{}", sessionId, ONLINE_SESSIONS.size());
 

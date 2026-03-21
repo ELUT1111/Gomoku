@@ -1,6 +1,7 @@
 #ifndef ONLINECHOICEWIDGET_H
 #define ONLINECHOICEWIDGET_H
 
+#include <QProgressDialog>
 #include <QWidget>
 
 namespace Ui {
@@ -29,6 +30,7 @@ signals:
     void sig_opponentChanged(bool status);
 private:
     Ui::OnlineChoiceWidget *ui;
+    QProgressDialog* matchDialog = nullptr; // 匹配动画弹窗指针
 };
 
 #endif // ONLINECHOICEWIDGET_H

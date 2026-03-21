@@ -3,6 +3,8 @@ package com.elut1111.gomokuservice.entity;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -34,6 +36,13 @@ public class Room implements Serializable {
      * 当前落子玩家颜色
      */
     private String currentPlayer;
+
+    public List<Player> getPlayers() {
+        List<Player> players = new ArrayList<>();
+        if(blackPlayer != null) players.add(blackPlayer);
+        if(whitePlayer != null) players.add(whitePlayer);
+        return players;
+    }
 
     // 房间状态枚举
     public enum RoomStatus {

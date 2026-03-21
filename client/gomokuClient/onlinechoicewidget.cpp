@@ -8,6 +8,7 @@
 OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::OnlineChoiceWidget)
+    , matchDialog(nullptr)
 {
     ui->setupUi(this);
     NetworkManager::instance().connectToServer("ws://localhost:8080/gomoku/ws");
@@ -19,6 +20,55 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
     connect(&NetworkManager::instance(), &NetworkManager::errorOccurred, this, [](QString msg){
         QMessageBox::warning(nullptr, "网络错误", msg);
     });
+
+    // 绑定房间信息信号→跳转到房间页面
+    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
+    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
+                    [this,conn](QString roomId, QString player, QString msg){
+                        Q_UNUSED(msg);
+
+                        if (!this->isVisible()) return;
+
+                        qDebug() << "[OnlineChoice] 创建房间成功，ID：" << roomId;
+
+                        // 传递房间ID给房间页面
+                        OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
+
+                        OnlineSessionManager::instance()->setMyOnlineColor("BLACK");
+
+                        if(matchDialog) {
+                            disconnect(matchDialog, &QProgressDialog::canceled, nullptr, nullptr);
+                            matchDialog->close();
+                            matchDialog->deleteLater();
+                            matchDialog = nullptr;
+                        }
+
+                        if(!player.isEmpty()) {
+                            OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
+                            OnlineSessionManager::instance()->setMyOnlineColor(player);
+                            PageManager::instance()->switchToPage(3); // 跳转到房间页
+                        }
+                    });
+
+    //绑定房间信息信号→跳转到房间页面
+    QSharedPointer<QMetaObject::Connection> conn2 = QSharedPointer<QMetaObject::Connection>::create();
+    *conn2 = connect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this,
+                    [this,conn2](QString roomId, QString player, QString msg){
+                        Q_UNUSED(msg);
+                        if (!this->isVisible()) return;
+                        if(!player.isEmpty()) {
+                            if(matchDialog) {
+                                disconnect(matchDialog, &QProgressDialog::canceled, nullptr, nullptr);
+                                matchDialog->close();
+                                matchDialog->deleteLater();
+                                matchDialog = nullptr;
+                            }
+                            OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
+                            OnlineSessionManager::instance()->setMyOnlineColor(player);
+                            PageManager::instance()->switchToPage(3);
+                        }
+                    });
+
 }
 
 OnlineChoiceWidget::~OnlineChoiceWidget()
@@ -35,26 +85,6 @@ void OnlineChoiceWidget::on_returnButton_2_clicked()
 void OnlineChoiceWidget::on_addRoomButton_clicked()
 {
     NetworkManager::instance().sendCreateRoom();
-
-    // 绑定房间信息信号→跳转到房间页面
-    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
-    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
-                    [conn](QString roomId, QString player, QString msg){
-        Q_UNUSED(player);
-        Q_UNUSED(msg);
-
-        qDebug() << "[OnlineChoice] 创建房间成功，ID：" << roomId;
-
-        // 传递房间ID给房间页面
-        OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
-
-        OnlineSessionManager::instance()->setMyOnlineColor("BLACK");
-
-        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
-
-        QObject::disconnect(*conn);
-    });
-
 }
 
 
@@ -68,23 +98,27 @@ void OnlineChoiceWidget::on_JoinRoomButton_clicked()
     }
     NetworkManager::instance().sendJoinRoom(inputRoomId);
 
-    //绑定房间信息信号→跳转到房间页面
-    QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
-    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this,
-                    [conn](QString roomId, QString player, QString msg){
-        QObject::disconnect(*conn);
-        Q_UNUSED(msg);
-        Q_UNUSED(player);
-        OnlineSessionManager::instance()->setCurrentRoomId(roomId.trimmed().toLower());
-        OnlineSessionManager::instance()->setMyOnlineColor("WHITE");
-        PageManager::instance()->switchToPage(3); // 跳转到OnlineRoomWidget
-    });
-
-
 }
 void OnlineChoiceWidget::on_searchGameButton_clicked()
 {
-    QMessageBox::information(this, "提示", "随机匹配功能正在开发中，敬请期待！");
+    NetworkManager::instance().sendRandomMatchRequest();
+
+    // 创建无限滚动的等候弹窗
+    matchDialog = new QProgressDialog("正在寻找势均力敌的对手...", "取消匹配", 0, 0, this);
+    matchDialog->setWindowTitle("随机匹配中");
+    matchDialog->setWindowModality(Qt::WindowModal);
+    matchDialog->setMinimumDuration(0); // 立即显示
+
+    // 点击取消则发送取消请求，并销毁弹窗
+    connect(matchDialog, &QProgressDialog::canceled, this, [this](){
+        NetworkManager::instance().sendCancelMatchRequest();
+        if(matchDialog) {
+            matchDialog->deleteLater();
+            matchDialog = nullptr;
+        }
+    });
+
+    matchDialog->show();
 }
 
 
