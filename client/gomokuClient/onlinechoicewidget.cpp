@@ -23,11 +23,13 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
 
     // 绑定房间信息信号→跳转到房间页面
     QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
-    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this,
-                    [this,conn](QString roomId, QString player, QString msg){
+    *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_createRoomStatusReceived, this,
+                    [this,conn](QString roomId, QString player,bool status, QString msg){
                         Q_UNUSED(msg);
 
                         if (!this->isVisible()) return;
+
+                        if (!status) return;
 
                         qDebug() << "[OnlineChoice] 创建房间成功，ID：" << roomId;
 

@@ -1,6 +1,7 @@
 package com.elut1111.gomokuservice.entity;
 
 import lombok.Data;
+import org.springframework.web.socket.WebSocketSession;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -37,6 +38,15 @@ public class Room implements Serializable {
      */
     private String currentPlayer;
 
+    /**
+     * 房主sessionId
+     */
+    private String ownerSessionId;
+
+    /**
+     * 获取玩家列表
+     * @return 当前玩家列表
+     */
     public List<Player> getPlayers() {
         List<Player> players = new ArrayList<>();
         if(blackPlayer != null) players.add(blackPlayer);
@@ -44,7 +54,10 @@ public class Room implements Serializable {
         return players;
     }
 
-    // 房间状态枚举
+    /**
+     * 房间状态枚举:
+     *  WHIT, PLAYING, END, CLOSE
+     */
     public enum RoomStatus {
         WAIT, PLAYING, END, CLOSE
     }
@@ -54,7 +67,6 @@ public class Room implements Serializable {
         this.roomId = UUID.randomUUID().toString().substring(0, 8).toLowerCase();
         this.status = RoomStatus.WAIT;
         this.chessBoard = new ChessBoard();
-        // 黑棋先行
         this.currentPlayer = "BLACK";
     }
 
@@ -77,7 +89,7 @@ public class Room implements Serializable {
     }
 
     /**
-     * 判断房间是否已满（2名玩家）
+     * 判断房间是否已满
      */
     public boolean isFull() {
         return blackPlayer != null && whitePlayer != null;
@@ -97,5 +109,50 @@ public class Room implements Serializable {
     public boolean isAllReady() {
         return blackPlayer != null && blackPlayer.isReady() &&
                 whitePlayer != null && whitePlayer.isReady();
+    }
+
+    /**
+     * 判断指定对话是否是房主
+     * @param session:会话
+     */
+    public boolean isOwner(WebSocketSession session) {
+        return this.ownerSessionId.equals(session.getId());
+    }
+
+    /**
+     * 转移房主给对手
+     */
+    public void transferOwnerToOpponent(WebSocketSession oldOwnerSession) {
+        Player opponent = getOpponent(getPlayerBySession(oldOwnerSession));
+        if (opponent != null) {
+            this.ownerSessionId = opponent.getSession().getId();
+            // 新房主默认执黑
+            if (!opponent.getColor().equals("BLACK")) {
+                swapPlayerColor();
+            }
+        }
+    }
+
+    /**
+     * 交换黑白棋双方
+     */
+    private void swapPlayerColor() {
+        Player temp = blackPlayer;
+        blackPlayer = whitePlayer;
+        whitePlayer = temp;
+        if (blackPlayer != null) blackPlayer.setColor("BLACK");
+        if (whitePlayer != null) whitePlayer.setColor("WHITE");
+    }
+
+    /**
+     * 根据会话获取玩家
+     */
+    public Player getPlayerBySession(WebSocketSession session) {
+        if (blackPlayer != null && blackPlayer.getSession().getId().equals(session.getId())) {
+            return blackPlayer;
+        } else if (whitePlayer != null && whitePlayer.getSession().getId().equals(session.getId())) {
+            return whitePlayer;
+        }
+        return null;
     }
 }

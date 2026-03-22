@@ -41,7 +41,9 @@ signals:
     void moveReceived(int x, int y, int color);
     void errorOccurred(QString msg);
 
+    void sig_createRoomStatusReceived(QString roomId, QString player,bool status ,QString msg);
     void sig_joinSuccessReceived(QString roomId, QString player,QString msg);
+    void sig_roomOwnerChangeReceived(QString roomId, QString player,QString msg);
     void sig_roomInfoReceived(QString roomId, QString player, QString msg); // 房间信息
     void sig_roomListReceived(QJsonArray roomList); // 房间列表信息
     void sig_quitRoomSuccessReceived(QString player,QString msg,bool status);

@@ -13,14 +13,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 房间管理器（内存存储，后续可扩展Redis持久化）
+ * 房间管理器
  */
 @Slf4j
 @Component
 public class RoomManager {
-    // 房间映射：key=roomId，value=Room实体
+    /**
+     * id-房间映射：key=roomId，value=Room实体
+     */
     private static final Map<String, Room> ROOM_MAP = new ConcurrentHashMap<>();
-    // 会话-房间映射：key=sessionId，value=roomId
+    /**
+     * 会话-房间映射：key=sessionId，value=roomId
+     */
     private static final Map<String, String> SESSION_ROOM_MAP = new ConcurrentHashMap<>();
 
     private static RoomManager instance;
@@ -31,12 +35,14 @@ public class RoomManager {
         return instance;
     }
     /**
-     * 创建房间（返回8位短ID）
+     * 创建房间
+     * @return 8位roomId
      */
     public String createRoom(WebSocketSession creator) {
         Room room = new Room();
         // 创建者为黑棋玩家
         Player blackPlayer = new Player("BLACK", creator);
+        room.setOwnerSessionId(creator.getId()); // 绑定房主
         blackPlayer.setReady(true);
         room.setBlackPlayer(blackPlayer);
         // 存入房间映射
@@ -63,6 +69,7 @@ public class RoomManager {
 
     /**
      * 判断房间是否存在
+     * @param roomId:roomId
      */
     public boolean existsRoom(String roomId) {
         Room room = ROOM_MAP.get(roomId);
@@ -148,31 +155,42 @@ public class RoomManager {
         Room room = ROOM_MAP.get(roomId);
         if (room == null) return;
 
-        // 1. 移除会话-房间绑定
+        // 移除会话-房间绑定
         SESSION_ROOM_MAP.remove(sessionId);
 
-        // 2. 清空房间指定玩家
+        // 清空房间指定玩家
         Player player = getPlayerBySession(room, session);
-        if (player != null) {
-            if ("BLACK".equals(player.getColor())) {
-                room.setBlackPlayer(null);
-            } else {
-                room.setWhitePlayer(null);
-            }
+        if (player == null) return;
+
+        boolean isOwnerQuit = room.isOwner(session);
+        if (isOwnerQuit && room.isFull()) {
+            room.transferOwnerToOpponent(session); // 转移房主
+            log.info("[RoomManager] 房主退出，已转移房主给对手，房间ID：{}", roomId);
         }
 
-        // 3. 房间无玩家 → 直接销毁
+        if ("BLACK".equals(player.getColor())) {
+            room.setBlackPlayer(null);
+        } else {
+            room.setWhitePlayer(null);
+        }
+
+        // 房间无玩家则直接销毁
         if (room.getBlackPlayer() == null && room.getWhitePlayer() == null) {
             room.setStatus(Room.RoomStatus.CLOSE);
             ROOM_MAP.remove(roomId);
-            log.info("[房间管理] 房间已销毁：{}", roomId);
+            log.info("[RoomManager] 房间已销毁：{}", roomId);
         } else {
-            // 剩余玩家 → 重置为等待状态
+            // 剩余玩家则重置为等待状态
             room.setStatus(Room.RoomStatus.WAIT);
             room.setCurrentPlayer("BLACK");
+
+            // 重置准备状态
+            Player remainingPlayer = room.getBlackPlayer() != null ? room.getBlackPlayer() : room.getWhitePlayer();
+            if (remainingPlayer != null) remainingPlayer.setReady(false);
+            log.info("[RoomManager] 玩家退出，房间重置等待状态：{}", roomId);
         }
 
-        log.info("[房间管理] 玩家退出清理完成：session={}, roomId={}", sessionId, roomId);
+        log.info("[RoomManager] 玩家退出清理完成：session={}, roomId={}", sessionId, roomId);
     }
 
     /**
@@ -201,6 +219,10 @@ public class RoomManager {
         return SESSION_ROOM_MAP.get(sessionId);
     }
 
+    /**
+     * 获取可加入等待房间
+     * @return 可加入房间列表
+     */
     public List<Room> getWaitAndNotFullRooms() {
         List<Room> result = new ArrayList<>();
         for (Room room : ROOM_MAP.values()) {
@@ -211,7 +233,10 @@ public class RoomManager {
         return result;
     }
 
-    // 获取所有有效房间（非关闭状态）
+    /**
+     * 获取所有未关闭有效房间
+     * @return Room数据传输体列表
+     */
     public List<RoomDTO> getValidRoomList() {
         List<RoomDTO> list = new ArrayList<>();
         for (Map.Entry<String, Room> entry : ROOM_MAP.entrySet()) {

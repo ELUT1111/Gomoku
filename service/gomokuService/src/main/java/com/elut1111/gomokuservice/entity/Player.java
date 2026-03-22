@@ -22,11 +22,15 @@ public class Player implements Serializable {
      */
     @Setter
     private WebSocketSession session;
+
     /**
      * 是否在线
      */
     private boolean online;
 
+    /**
+     * 玩家准备状态
+     */
     @Setter
     @Getter
     private boolean ready;

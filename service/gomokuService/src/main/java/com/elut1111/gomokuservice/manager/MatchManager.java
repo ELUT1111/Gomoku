@@ -112,7 +112,8 @@ public class MatchManager {
 
         // 通知 房主
         GomokuMessage msg1 = new GomokuMessage();
-        msg1.setType("ROOM_INFO");
+        msg1.setType("CREATE_ROOM_STATUS");
+        msg1.setDecision(true);
         msg1.setRoomId(roomId);
         msg1.setPlayer("BLACK");
         msg1.setMsg("匹配成功，等待准备游戏！");

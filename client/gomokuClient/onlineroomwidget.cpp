@@ -47,13 +47,10 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     QSharedPointer<QMetaObject::Connection> conn3 = QSharedPointer<QMetaObject::Connection>::create();
     *conn3 = connect(&NetworkManager::instance(),&NetworkManager::sig_quitRoomSuccessReceived,this,[this](QString player,QString msg,bool status)
         {
+        if(!this->isVisible()) return;
+
         if(player == OnlineSessionManager::instance()->getMyOnlineColor())
         {
-            // 断开所有房间相关信号
-            disconnect(&NetworkManager::instance(), &NetworkManager::sig_roomInfoReceived, this, nullptr);
-            disconnect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this, nullptr);
-            disconnect(&NetworkManager::instance(), &NetworkManager::sig_playerReadyReceived, this, nullptr);
-            disconnect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, nullptr);
 
             // 重置房间UI状态
             ui->lblRoomId->setText("Null");
@@ -102,6 +99,8 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
         ui->lblRoomStatus->setText(msg);
     });
 
+    // 监听房主变化
+    connect(&NetworkManager::instance(), &NetworkManager::sig_roomOwnerChangeReceived,this,&OnlineRoomWidget::slot_onOwnerChanged);
     // 监听游戏正式开始
     connect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, [this](QString msg){
         // QMessageBox::information(this, "游戏开始", msg);
@@ -110,6 +109,7 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
         GameSession::instance()->setOnlinePlayerTag(myChessType, OnlineSessionManager::instance()->getMyOnlineColor());
         PageManager::instance()->switchToPage(5);
     });
+
 }
 
 OnlineRoomWidget::~OnlineRoomWidget()
@@ -121,29 +121,8 @@ void OnlineRoomWidget::showEvent(QShowEvent *event)
 {
     qDebug()<<OnlineSessionManager::instance()->getMyOnlineColor();
     QWidget::showEvent(event);
-    ui->lblRoomId->setText(OnlineSessionManager::instance()->getCurrentRoomId().trimmed().toLower());
-    ui->lblHostChess->setText("棋子：黑色");
-    ui->lblOpponentChess->setText("棋子：白色");
 
-    if (OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK") {
-        // 房主默认UI
-        ui->lblHostId->setText("我 (房主)");
-        ui->lblHostStatus->setText("已准备");
-        ui->lblOpponentId->setText("未加入");
-        ui->lblOpponentStatus->setText("未在线");
-        ui->btnStartGame->setText("开始游戏");
-        ui->btnStartGame->setEnabled(false);
-        ui->lblRoomStatus->setText("等待对手加入...");
-    } else {
-        // 其他默认UI
-        ui->lblHostId->setText("房主");
-        ui->lblHostStatus->setText("已准备");
-        ui->lblOpponentId->setText("我 (已加入)");
-        ui->lblOpponentStatus->setText("未准备");
-        ui->btnStartGame->setText("准备");
-        ui->btnStartGame->setEnabled(true);
-        ui->lblRoomStatus->setText("成功加入房间，请点击准备");
-    }
+    setDefaultUi();
 }
 
 void OnlineRoomWidget::on_btnQuitRoom_clicked()
@@ -184,6 +163,20 @@ void OnlineRoomWidget::on_btnStartGame_clicked()
     }
 }
 
+void OnlineRoomWidget::slot_onOwnerChanged(QString roomId, QString player, QString msg)
+{
+    Q_UNUSED(roomId);
+    Q_UNUSED(player);
+    Q_UNUSED(msg);
+    if(!this->isVisible()) return;
+
+    // 更新本地会话颜色
+    OnlineSessionManager::instance()->setMyOnlineColor("BLACK");
+    // 自己成为房主：更新UI
+    setDefaultUi();
+    ui->lblRoomStatus->setText("你已成为房主，等待对手加入");
+}
+
 bool OnlineRoomWidget::getReady() const
 {
     return ready;
@@ -192,4 +185,32 @@ bool OnlineRoomWidget::getReady() const
 void OnlineRoomWidget::setReady(bool newReady)
 {
     ready = newReady;
+}
+
+void OnlineRoomWidget::setDefaultUi()
+{
+    ui->lblRoomId->setText(OnlineSessionManager::instance()->getCurrentRoomId().trimmed().toLower());
+    ui->lblHostChess->setText("棋子：黑色");
+    ui->lblOpponentChess->setText("棋子：白色");
+    ui->btnStartGame->setStyleSheet("background-color: #4A6CF7;");
+
+    if (OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK") {
+        // 房主默认UI
+        ui->lblHostId->setText("我 (房主)");
+        ui->lblHostStatus->setText("已准备");
+        ui->lblOpponentId->setText("未加入");
+        ui->lblOpponentStatus->setText("未在线");
+        ui->btnStartGame->setText("开始游戏");
+        ui->btnStartGame->setEnabled(false);
+        ui->lblRoomStatus->setText("等待对手加入...");
+    } else {
+        // 其他默认UI
+        ui->lblHostId->setText("房主");
+        ui->lblHostStatus->setText("已准备");
+        ui->lblOpponentId->setText("我 (已加入)");
+        ui->lblOpponentStatus->setText("未准备");
+        ui->btnStartGame->setText("准备");
+        ui->btnStartGame->setEnabled(true);
+        ui->lblRoomStatus->setText("成功加入房间，请点击准备");
+    }
 }

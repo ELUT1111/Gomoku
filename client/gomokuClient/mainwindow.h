@@ -35,7 +35,7 @@ private:
 
 public slots:
     void slot_switchToPage(int index);
-
+    void slot_updateGameButtonVisible(GamemodeType mode);
 private slots:
     void on_undoButton_clicked();
     void on_resetButton_clicked();

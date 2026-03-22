@@ -18,6 +18,8 @@ public:
     bool getReady() const;
     void setReady(bool newReady);
 
+    void setDefaultUi();
+
 protected:
     void showEvent(QShowEvent *event) override;
 
@@ -28,6 +30,7 @@ private slots:
 
     void on_btnStartGame_clicked();
 
+    void slot_onOwnerChanged(QString roomId, QString player, QString msg);
 private:
     bool ready = false;
 

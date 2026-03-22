@@ -11,8 +11,8 @@ public class GomokuMessage {
      * 消息类型：
      * CREATE_ROOM - 创建房间
      * JOIN_ROOM   - 加入房间
-     *  RANDOM_MATCH -随机匹配
-     *  CANCEL_MATCH -取消匹配
+     * RANDOM_MATCH -随机匹配
+     * CANCEL_MATCH -取消匹配
      * QUIT_ROOM   - 玩家退出
      * PLAYER_READY - 玩家准备
      * START_GAME  - 开始游戏
@@ -22,9 +22,11 @@ public class GomokuMessage {
      * ERROR       - 错误提示
      * REFRESH_ROOM_LIST  - 客户端请求刷新房间列表
      * 单向信息：
+     * CREATE_ROOM_STATUS - 创建房间请求返回状态
      * JOIN_SUCCESS - 加入房间成功
      * ROOM_LIST    - 服务端推送房间列表
      * QUIT_ROOM_SUCCESS - 退出房间成功
+     * ROOM_OWNER_CHANGE - 房主交换
      * PLACE_CHESS_STATUS - 落子请求返回的落子状态
      */
     private String type;

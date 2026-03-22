@@ -83,6 +83,12 @@ void NetworkManager::onTextMessageReceived(QString message) {
         QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();
         emit sig_roomInfoReceived(roomId, player, msg);
+    }else if(type == "CREATE_ROOM_STATUS"){
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        bool status = obj["decision"].toBool();
+        emit sig_createRoomStatusReceived(roomId,player,status,msg);
     }else if(type == "JOIN_SUCCESS"){
         QString roomId = obj["roomId"].toString();
         QString player = obj["player"].toString();
@@ -91,6 +97,11 @@ void NetworkManager::onTextMessageReceived(QString message) {
     }else if (type == "PLAYER_READY") {
         QString msg = obj["msg"].toString();
         emit sig_playerReadyReceived(obj["decision"].toBool(), msg);
+    }else if(type == "ROOM_OWNER_CHANGE"){
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        emit sig_roomOwnerChangeReceived(roomId,player,msg);
     }else if(type == "QUIT_ROOM_SUCCESS"){
         QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();

@@ -18,6 +18,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(this,&MainWindow::signal_undo,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_undo);
     connect(this,&MainWindow::signal_reset,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_reset);
+    connect(PageManager::instance(), &PageManager::signal_changeGamemode,
+            this, &MainWindow::slot_updateGameButtonVisible);
 
 }
 void MainWindow::initPage()
@@ -46,6 +48,15 @@ inline void MainWindow::changePage(int index)
 void MainWindow::slot_switchToPage(int index)
 {
     changePage(index);
+}
+
+void MainWindow::slot_updateGameButtonVisible(GamemodeType mode)
+{
+    // 在线模式下，关闭重置和返回按钮
+    bool isOnlineMode = (mode == GamemodeType::ONLINE);
+    // ui->undoButton->setVisible(!isOnlineMode);
+    ui->resetButton->setVisible(!isOnlineMode);
+    ui->backButton->setVisible(!isOnlineMode);
 }
 MainWindow::~MainWindow()
 {

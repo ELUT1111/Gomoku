@@ -28,5 +28,6 @@ void StartWidget::on_quitButton_clicked()
 void StartWidget::on_onlineButton_clicked()
 {
     PageManager::instance()->switchToPage(2);
+    PageManager::instance()->signal_changeGamemode(GamemodeType::ONLINE);
 }
 

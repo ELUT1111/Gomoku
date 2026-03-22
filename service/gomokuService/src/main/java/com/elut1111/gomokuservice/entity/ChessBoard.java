@@ -3,7 +3,7 @@ package com.elut1111.gomokuservice.entity;
 import lombok.Data;
 
 /**
- * 棋盘实体（15*15，与Qt客户端一致）
+ * 棋盘实体（15*15）
  */
 @Data
 public class ChessBoard {
@@ -40,7 +40,7 @@ public class ChessBoard {
     }
 
     /**
-     * 落子校验：位置是否合法（越界/已有棋子）
+     * 落子校验：位置是否合法
      */
     public boolean checkChessPos(int x, int y) {
         if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) {
@@ -66,7 +66,8 @@ public class ChessBoard {
     }
 
     /**
-     * 获取棋子颜色（反向转换）
+     * 获取棋子颜色
+     * @return "BLACK"|"WHITE"
      */
     public String getChessColor(int x, int y) {
         if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) {

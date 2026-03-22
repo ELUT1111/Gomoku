@@ -3,7 +3,7 @@
 
 #include <QString>
 
-// 房间状态枚举（和后端对齐）
+// 房间状态枚举
 enum class RoomStatus {
     WAITING,   // 等待玩家
     PLAYING,   // 游戏中
@@ -18,6 +18,7 @@ public:
     int playerCount;         // 当前玩家数（0/1/2）
     RoomStatus status;       // 房间状态
     QString currentPlayer;   // 当前落子玩家
+    bool isMeOwner = false;  // 当前客户端房主标识
 
     OnlineRoomInfo() : playerCount(0), status(RoomStatus::CLOSED) {}
 
