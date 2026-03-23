@@ -42,6 +42,7 @@ public:
 
     bool checkWin(int x,int y,ChessType chessType);
     bool isAIMode();
+    bool isOnlineMode();
 
     void setOnlinePlayerTag(ChessType chessType, const QString& tag);
     // 在线模式：获取当前在线玩家

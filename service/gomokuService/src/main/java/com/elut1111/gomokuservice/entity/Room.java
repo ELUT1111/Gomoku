@@ -17,22 +17,27 @@ public class Room implements Serializable {
      * 房间ID（8位短ID）
      */
     private String roomId;
+
     /**
      * 房间状态：WAIT-等待对手，PLAYING-游戏中，END-游戏结束，CLOSE-房间关闭
      */
     private RoomStatus status;
+
     /**
      * 棋盘实例
      */
     private ChessBoard chessBoard;
+
     /**
      * 黑棋玩家
      */
     private Player blackPlayer;
+
     /**
      * 白棋玩家
      */
     private Player whitePlayer;
+
     /**
      * 当前落子玩家颜色
      */
@@ -42,6 +47,16 @@ public class Room implements Serializable {
      * 房主sessionId
      */
     private String ownerSessionId;
+
+    /**
+     * 是否在处理悔棋请求中
+     */
+    private boolean undoRequesting;
+
+    /**
+     * 悔棋请求方颜色
+     */
+    private String undoRequester;
 
     /**
      * 获取玩家列表

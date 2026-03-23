@@ -24,6 +24,8 @@ public:
     void sendQuitRoomRequest(); //退出房间
     void sendRefreshRoomList(); // 刷新房间列表
     void sendChessMove(int x, int y, const QString& player); // 发送落子
+    void sendUndoRequest(bool status);
+    void sendUndoChoice(bool choice);
     void sendRandomMatchRequest();
     void sendReadyRequest(bool isReady);
     void sendStartGameRequest();
@@ -42,6 +44,8 @@ signals:
     void errorOccurred(QString msg);
 
     void sig_createRoomStatusReceived(QString roomId, QString player,bool status ,QString msg);
+    void sig_undoStatusReceived(QString roomId, QString player,bool status ,QString msg);
+    void sig_undoRequestReceived(QString roomId, QString player,bool status, QString msg);
     void sig_joinSuccessReceived(QString roomId, QString player,QString msg);
     void sig_roomOwnerChangeReceived(QString roomId, QString player,QString msg);
     void sig_roomInfoReceived(QString roomId, QString player, QString msg); // 房间信息

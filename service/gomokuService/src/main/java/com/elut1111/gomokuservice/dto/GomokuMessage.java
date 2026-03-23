@@ -21,6 +21,8 @@ public class GomokuMessage {
      * GAME_OVER   - 游戏结束
      * ERROR       - 错误提示
      * REFRESH_ROOM_LIST  - 客户端请求刷新房间列表
+     * UNDO_REQUEST     - 玩家发起悔棋请求/取消悔棋请求
+     * UNDO_CHOICE     - 对手确认/拒绝悔棋
      * 单向信息：
      * CREATE_ROOM_STATUS - 创建房间请求返回状态
      * JOIN_SUCCESS - 加入房间成功
@@ -28,6 +30,7 @@ public class GomokuMessage {
      * QUIT_ROOM_SUCCESS - 退出房间成功
      * ROOM_OWNER_CHANGE - 房主交换
      * PLACE_CHESS_STATUS - 落子请求返回的落子状态
+     * UNDO_STATUS     - 悔棋请求返回状态
      */
     private String type;
     // 房间ID

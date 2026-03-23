@@ -2,6 +2,9 @@ package com.elut1111.gomokuservice.entity;
 
 import lombok.Data;
 
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * 棋盘实体（15*15）
  */
@@ -19,11 +22,28 @@ public class ChessBoard {
      * 落子总数
      */
     private int chessCount;
+    /**
+     * 落子历史
+     */
+    private List<ChessMove> moveHistory;
+
+    @Data
+    public static class ChessMove {
+        private int x;
+        private int y;
+        private String color;
+        public ChessMove(int x, int y, String color) {
+            this.x = x;
+            this.y = y;
+            this.color = color;
+        }
+    }
 
     public ChessBoard() {
         // 初始化空棋盘
         this.board = new int[BOARD_SIZE][BOARD_SIZE];
         this.chessCount = 0;
+        this.moveHistory = new LinkedList<>();
         clearBoard();
     }
 
@@ -37,6 +57,7 @@ public class ChessBoard {
             }
         }
         chessCount = 0;
+        moveHistory.clear();
     }
 
     /**
@@ -62,6 +83,7 @@ public class ChessBoard {
         }
         board[x][y] = "BLACK".equals(color) ? 1 : 2;
         chessCount++;
+        moveHistory.add(new ChessMove(x, y, color));
         return true;
     }
 
@@ -74,5 +96,19 @@ public class ChessBoard {
             return null;
         }
         return board[x][y] == 1 ? "BLACK" : (board[x][y] == 2 ? "WHITE" : null);
+    }
+
+    /**
+     * 悔棋
+     * @return 悔棋状态
+     */
+    public boolean undo() {
+        if (moveHistory.isEmpty()) {
+            return false;
+        }
+        ChessMove lastMove = moveHistory.remove(moveHistory.size() - 1);
+        board[lastMove.getX()][lastMove.getY()] = 0;
+        chessCount--;
+        return true;
     }
 }

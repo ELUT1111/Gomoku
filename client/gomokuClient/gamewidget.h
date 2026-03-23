@@ -11,7 +11,7 @@
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
 #include <QLabel>
-
+#include <qprogressdialog.h>
 
 namespace Ui {
 class GameWidget;
@@ -37,15 +37,16 @@ public:
 
     QPoint posToGrid(const QPoint &pos);
 
+    void createOverlayWidgets(); // 初始化在线模式悔棋流程非阻塞 UI
+
+    GamemodeType getCurrentGamemode() const;
+    void setCurrentGamemode(GamemodeType newCurrentGamemode);
+
 protected:
     void showEvent(QShowEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void updateViewScale();
-public:
-
-    GamemodeType getCurrentGamemode() const;
-    void setCurrentGamemode(GamemodeType newCurrentGamemode);
 
 private:
     Ui::GameWidget *ui;
@@ -53,7 +54,8 @@ private:
     QGraphicsView* view;
     QGraphicsScene* scene;
     QGraphicsPixmapItem* boardItem;
-
+    QProgressDialog* undoWaitDialog;    // 悔棋等待遮罩
+    QWidget* undoConfirmPanel;   // 悔棋确认面板
     GameSession* session;
 
     GamemodeType currentGamemode;
@@ -64,7 +66,7 @@ private:
     // int board[15][15]; // 0空1黑2白
     int currentColor = 1;
     int nextColor = 2;
-    QList<QGraphicsPixmapItem*> chessItems;
+    QList<QGraphicsPixmapItem*> chessItems; // 仅ui棋子
     QList<QPoint> chessPoints;
 
     const qreal BORDER_RATIO = 22.5/535;

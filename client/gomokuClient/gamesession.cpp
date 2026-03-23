@@ -122,6 +122,11 @@ bool GameSession::isAIMode()
            gamemode == GamemodeType::OFFLINE_AI_HARD;
 }
 
+bool GameSession::isOnlineMode()
+{
+    return gamemode == GamemodeType::ONLINE;
+}
+
 void GameSession::slot_changeGamemode(GamemodeType gamemode)
 {
     qDebug()<<"[session] 当前模式:"<<int(gamemode);

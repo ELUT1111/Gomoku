@@ -31,11 +31,10 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
     private static final Map<String, WebSocketSession> ONLINE_SESSIONS = new ConcurrentHashMap<>();
     // JSON解析器
     private final ObjectMapper objectMapper = new ObjectMapper();
-    // 注入房间管理器
-//    @Resource
-    private RoomManager roomManager = RoomManager.getInstance();
 
-    private MatchManager matchManager = MatchManager.getInstance();
+    private final RoomManager roomManager = RoomManager.getInstance();
+
+    private final MatchManager matchManager = MatchManager.getInstance();
     /**
      * 客户端连接成功
      */
@@ -62,6 +61,8 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 case "CREATE_ROOM" -> handleCreateRoom(session, gomokuMsg);
                 case "JOIN_ROOM" -> handleJoinRoom(session, gomokuMsg);
                 case "CHESS_MOVE" -> handleChessMove(session, gomokuMsg);
+                case "UNDO_REQUEST" -> handleUndoRequest(session, gomokuMsg);    // 新增：发起悔棋请求
+                case "UNDO_CHOICE" -> handleUndoChoice(session, gomokuMsg);    // 新增：确认悔棋
                 case "PLAYER_READY" -> handlePlayerReady(session, gomokuMsg);
                 case "START_GAME" -> handleStartGame(session, gomokuMsg);
                 case "QUIT_ROOM" -> handleQuitRoom(session, gomokuMsg);
@@ -361,6 +362,136 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    private void handleUndoRequest(WebSocketSession session, GomokuMessage msg) {
+        String roomId = roomManager.getRoomIdBySessionId(session.getId());
+        boolean status = msg.isDecision();
+        if (roomId == null) {
+            sendErrorMsg(session, "未加入房间，无法悔棋");
+            return;
+        }
+        Room room = roomManager.getRoomByRoomId(roomId);
+        if (room == null || room.getStatus() != Room.RoomStatus.PLAYING) {
+            sendErrorMsg(session, "游戏未开始，无法悔棋");
+            return;
+        }
+        Player player = roomManager.getPlayerBySession(room, session);
+        if (player == null) {
+            sendErrorMsg(session, "玩家信息异常");
+            return;
+        }
+        if(status){
+            if (room.isUndoRequesting()) {
+                sendErrorMsg(session, "已有悔棋请求处理中");
+                return;
+            }
+            // 只能悔自己的最后一步
+            if (room.getChessBoard().getMoveHistory().isEmpty()) {
+                sendErrorMsg(session, "无棋可悔");
+                return;
+            }
+            ChessBoard.ChessMove lastMove = room.getChessBoard().getMoveHistory().get(room.getChessBoard().getMoveHistory().size() - 1);
+            if (!lastMove.getColor().equals(player.getColor())) {
+                sendErrorMsg(session, "只能悔自己的棋子");
+                return;
+            }
+            // 标记悔棋请求
+            room.setUndoRequesting(true);
+            room.setUndoRequester(player.getColor());
+            // 通知对手：收到悔棋请求
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                GomokuMessage notify = new GomokuMessage();
+                notify.setType("UNDO_REQUEST");
+                notify.setRoomId(roomId);
+                notify.setPlayer(player.getColor());
+                notify.setDecision(true);
+                notify.setMsg(player.getColor() + "请求悔棋");
+                sendMsgToSession(opponent, notify);
+            }
+            // 通知请求方：请求已发送
+            sendMsgToSession(session, new GomokuMessage() {{
+                setType("UNDO_REQUEST");
+                setRoomId(roomId);
+                setPlayer(player.getColor());
+                setDecision(true);
+                setMsg("悔棋请求已发送，等待对方确认");
+            }});
+        }else{
+            if (!room.isUndoRequesting()) {
+                sendErrorMsg(session, "无悔棋请求");
+                return;
+            }
+            if (!room.getUndoRequester().equals(player.getColor())) {
+                sendErrorMsg(session, "无权限处理此请求");
+                return;
+            }
+            room.setUndoRequesting(false);
+            room.setUndoRequester(null);
+            // 通知对手：收到取消悔棋请求
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                GomokuMessage notify = new GomokuMessage();
+                notify.setType("UNDO_REQUEST");
+                notify.setRoomId(roomId);
+                notify.setPlayer(player.getColor());
+                notify.setDecision(false);
+                notify.setMsg(player.getColor() + "取消请求悔棋");
+                sendMsgToSession(opponent, notify);
+            }
+            // 通知请求方：请求已发送
+            sendMsgToSession(session, new GomokuMessage() {{
+                setType("UNDO_REQUEST");
+                setRoomId(roomId);
+                setPlayer(player.getColor());
+                setDecision(false);
+                setMsg("已取消悔棋请求");
+            }});
+        }
+
+    }
+    private void handleUndoChoice(WebSocketSession session, GomokuMessage msg) {
+        String roomId = roomManager.getRoomIdBySessionId(session.getId());
+        if (roomId == null) return;
+        Room room = roomManager.getRoomByRoomId(roomId);
+        if (room == null || !room.isUndoRequesting()) return;
+
+        boolean decision = msg.isDecision();
+        if(decision){
+            // 执行悔棋
+            boolean undoSuccess = room.getChessBoard().undo();
+            room.setUndoRequesting(false);
+            room.setUndoRequester(null);
+            room.switchCurrentPlayer(); // 切换回合
+
+            // 通知双方悔棋成功
+            GomokuMessage successMsg = new GomokuMessage();
+            successMsg.setType("UNDO_STATUS");
+            successMsg.setDecision(true);
+            successMsg.setRoomId(roomId);
+            successMsg.setMsg("悔棋成功");
+            sendMsgToSession(session, successMsg);
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                sendMsgToSession(opponent, successMsg);
+            }
+        }else{
+
+            room.setUndoRequesting(false);
+            room.setUndoRequester(null);
+
+            // 通知双方悔棋取消
+            GomokuMessage cancelMsg = new GomokuMessage();
+            cancelMsg.setType("UNDO_STATUS");
+            cancelMsg.setDecision(false);
+            cancelMsg.setRoomId(roomId);
+            cancelMsg.setMsg("对方拒绝悔棋");
+            sendMsgToSession(session, cancelMsg);
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+            if (opponent != null && opponent.isOpen()) {
+                sendMsgToSession(opponent, cancelMsg);
+            }
+        }
+    }
     /**
      * 发送消息给指定会话
      */

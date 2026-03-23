@@ -9,6 +9,8 @@
 #include <HumanPlayer.h>
 #include <QMovie>
 #include <OnlineSessionManager.h>
+#include <QPushButton>
+
 
 GameWidget::GameWidget(QWidget *parent)
     : QWidget(parent)
@@ -79,6 +81,8 @@ void GameWidget::initUI()
 
     // 设置场景大小
     scene->setSceneRect(boardItem->boundingRect());
+
+    createOverlayWidgets(); // 初始化在线模式悔棋流程ui
 }
 
 void GameWidget::initConnect()
@@ -102,7 +106,66 @@ void GameWidget::initConnect()
     connect(GameSession::instance(), &GameSession::sig_onlineGameOver, this, [this](QString msg){
         QMessageBox::information(this, "游戏结束", msg);
         slot_reset();
+        // TODO
     });
+    // 绑定收到悔棋请求信号
+    connect(&NetworkManager::instance(),&NetworkManager::sig_undoRequestReceived,this,[this](QString roomId,QString player,bool status){
+
+        if(!this->isVisible()) return;
+
+        if(status)
+        {
+            if(OnlineSessionManager::getMyOnlineColor() == player)
+            {
+                // 创建无限滚动的等候弹窗
+                undoWaitDialog = new QProgressDialog("正在等待对方回复...", "取消", 0, 0, this);
+                undoWaitDialog->setWindowTitle("等待悔棋中");
+                undoWaitDialog->setWindowModality(Qt::WindowModal);
+                undoWaitDialog->setMinimumDuration(0); // 立即显示
+
+                // 点击取消发送取消请求
+                connect(undoWaitDialog, &QProgressDialog::canceled, this, [](){
+                    NetworkManager::instance().sendUndoRequest(false);
+                });
+
+                undoWaitDialog->show();
+            }
+            else
+            {
+                undoConfirmPanel->move((width()-280)/2, (height()-120)/2);
+                undoConfirmPanel->show();
+                undoConfirmPanel->raise();
+            }
+        }
+        else //收到取消悔棋请求
+        {
+            if(OnlineSessionManager::getMyOnlineColor() == player)
+            {
+                if(undoWaitDialog) {
+                    undoWaitDialog->deleteLater();
+                    undoWaitDialog = nullptr;
+                }
+            }
+            else
+            {
+                undoConfirmPanel->hide();
+            }
+        }
+
+    });
+    // 绑定悔棋请求返回状态信号
+    connect(&NetworkManager::instance(),&NetworkManager::sig_undoStatusReceived,this,[this](QString roomId,QString player,bool status){
+        if(!this -> isVisible()) return;
+        if(undoWaitDialog) {
+            undoWaitDialog->deleteLater();
+            undoWaitDialog = nullptr;
+        }
+        if(status)
+        {
+            undoForUI();
+        }
+    });
+
     // 绑定在线错误信号
     connect(GameSession::instance(), &GameSession::sig_onlineError, this, [this](QString msg){
         QMessageBox::warning(this, "在线错误", msg);
@@ -142,7 +205,7 @@ void GameWidget::drawChess(int x, int y, ChessType chessType)
     if(GameSession::instance()->gamemode != GamemodeType::ONLINE && boardData->getChess(x,y) != ChessType::EMPTY) return;
     qDebug()<<"[gameWidget] 绘子"<<x<<","<<y;
 
-    // TODO
+    // TODO: 为新棋子添加ui标记
 
     // 加载棋子图片
     QPixmap chess_pix = (chessType == ChessType::BLACK) ? QPixmap(PATH_blackChess) : QPixmap(PATH_whiteChess);
@@ -175,37 +238,26 @@ void GameWidget::drawChess(int x, int y, ChessType chessType)
 
 void GameWidget::undoForUI()
 {
-    if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
-    {
-        return;
-    }
-
     /*悔棋*/
-    if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
-    {
-        return; //待实现
-    }
+
     if(chessItems.isEmpty()) return;
     auto last = chessItems.takeLast();
     scene->removeItem(last);
     delete last;
     last = nullptr;
+
+    // 在线模式下只悔1棋
+    if(GameSession::instance()->gamemode == GamemodeType::ONLINE) return;
+
     if(isAIMode())
     {
+        // 离线ai模式下连悔两棋
         if(chessItems.isEmpty()) return;
         auto last = chessItems.takeLast();
         scene->removeItem(last);
         delete last;
         last = nullptr;
     }
-    else if(currentGamemode == GamemodeType::ONLINE)
-    {
-        QMessageBox::warning(this, "提示", "在线模式下不支持悔棋！");
-        return;
-    }
-    //QPoint lastGird = chessPoints.takeLast();
-    //board[lastGird.x()][lastGird.y()] = 0;
-    //std::swap(currentColor,nextColor);
 }
 
 void GameWidget::clearBoardForUI()
@@ -275,6 +327,41 @@ QPoint GameWidget::posToGrid(const QPoint &pos)
     return QPoint(x, y);
 }
 
+void GameWidget::createOverlayWidgets()
+{
+    undoConfirmPanel = new QWidget(this);
+    undoConfirmPanel->setObjectName("undoPanel");
+    undoConfirmPanel->setFixedSize(280, 120);
+    undoConfirmPanel->setStyleSheet(
+        "#undoPanel { background: white; border: 2px solid #4A6CF7; border-radius: 10px; }"
+        "QPushButton { background: #4A6CF7; color: white; border-radius: 5px; padding: 5px; }"
+        );
+
+    QVBoxLayout* layout = new QVBoxLayout(undoConfirmPanel);
+    QLabel* txt = new QLabel("对方请求悔棋...", undoConfirmPanel);
+    txt->setAlignment(Qt::AlignCenter);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    QPushButton* btnYes = new QPushButton("同意", undoConfirmPanel);
+    QPushButton* btnNo = new QPushButton("拒绝", undoConfirmPanel);
+    btnLayout->addWidget(btnYes);
+    btnLayout->addWidget(btnNo);
+
+    layout->addWidget(txt);
+    layout->addLayout(btnLayout);
+    undoConfirmPanel->hide();
+
+    // 悔棋决定
+    connect(btnYes, &QPushButton::clicked, [this](){
+        NetworkManager::instance().sendUndoChoice(true);
+        undoConfirmPanel->hide();
+    });
+    connect(btnNo, &QPushButton::clicked, [this](){
+        NetworkManager::instance().sendUndoChoice(false);
+        undoConfirmPanel->hide();
+    });
+}
+
 void GameWidget::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
@@ -311,11 +398,6 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
 
             NetworkManager::instance().sendChessMove(x,y,OnlineSessionManager::instance()->getMyOnlineColor());
 
-            // // 判断当前玩家是否为人类在线玩家
-            // if(!GameSession::instance()->currentPlayer || GameSession::instance()->currentPlayer->getMyChessType() != myType)
-            // {
-            //     return;
-            // }
             return;
         }
         if( boardData->getChess(x, y) == ChessType::EMPTY) // 空位
@@ -367,7 +449,7 @@ void GameWidget::slot_changeGamemode(GamemodeType gamemode)
 
 void GameWidget::slot_undo()
 {
-    emit signal_undoRequest();
+    if(currentGamemode != GamemodeType::ONLINE)emit signal_undoRequest();
     undoForUI();
 }
 
@@ -396,12 +478,6 @@ void GameWidget::slot_switchTurn()
 
     //qDebug()<<"[gameWidget] 交换回合";
     disconnect(this, &GameWidget::signal_mouseClicked, nullptr, nullptr);
-    // if(currentGamemode == GamemodeType::OFFLINE_FREE)
-    // {
-    //     disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->lastPlayer,&AbstractPlayer::slot_onMouseClicked);
-    // }
-    //disconnect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked);
-    // connect(this,&GameWidget::signal_mouseClicked,GameSession::instance()->currentPlayer,&AbstractPlayer::slot_onMouseClicked,Qt::UniqueConnection);
     if (qobject_cast<HumanPlayer*>(GameSession::instance()->currentPlayer) ||
         qobject_cast<OnlinePlayer*>(GameSession::instance()->currentPlayer)) {
         connect(this,&GameWidget::signal_mouseClicked,

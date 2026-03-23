@@ -21,7 +21,7 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
         QMessageBox::warning(nullptr, "网络错误", msg);
     });
 
-    // 绑定房间信息信号→跳转到房间页面
+    // 绑定创建房间信息返回信号→跳转到房间页面
     QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
     *conn = connect(&NetworkManager::instance(), &NetworkManager::sig_createRoomStatusReceived, this,
                     [this,conn](QString roomId, QString player,bool status, QString msg){
@@ -52,7 +52,7 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
                         }
                     });
 
-    //绑定房间信息信号→跳转到房间页面
+    //绑定加入房间信息返回信号→跳转到房间页面
     QSharedPointer<QMetaObject::Connection> conn2 = QSharedPointer<QMetaObject::Connection>::create();
     *conn2 = connect(&NetworkManager::instance(), &NetworkManager::sig_joinSuccessReceived, this,
                     [this,conn2](QString roomId, QString player, QString msg){

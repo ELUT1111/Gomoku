@@ -46,6 +46,24 @@ void NetworkManager::sendChessMove(int x, int y, const QString& player) {
     m_socket.sendTextMessage(serializeMsg("CHESS_MOVE", OnlineSessionManager::instance()->getCurrentRoomId(), player, x, y));
 }
 
+void NetworkManager::sendUndoRequest(bool status)
+{
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("UNDO_REQUEST",
+                                          OnlineSessionManager::instance()->getCurrentRoomId(),
+                                           "",-1,-1,"悔棋请求状态",status
+                                          ));
+}
+
+void NetworkManager::sendUndoChoice(bool choice)
+{
+    if(!isConnected()) return;
+    m_socket.sendTextMessage(serializeMsg("UNDO_CHOICE",
+                                          OnlineSessionManager::instance()->getCurrentRoomId(),
+                                          "",-1,-1,"做出悔棋选择",choice
+                                          ));
+}
+
 // 网络断开
 void NetworkManager::onSocketDisconnected() {
     qDebug() << "[Network] 与服务端断开连接";
@@ -57,7 +75,6 @@ void NetworkManager::sendCreateRoom() {
         emit errorOccurred("未连接到服务端，请先连接");
         return;
     }
-    // 调用序列化方法，发送 CREATE_ROOM 消息（无额外参数）
     m_socket.sendTextMessage(serializeMsg("CREATE_ROOM"));
     qDebug() << "[Network] 发送创建房间请求";
 }
@@ -130,6 +147,18 @@ void NetworkManager::onTextMessageReceived(QString message) {
         int color = (obj["player"].toString() == "BLACK") ? 1 : 2;
         bool status = obj["decision"].toBool();
         emit sig_placeChessStatusReceived(x,y,color,status);
+    }else if(type == "UNDO_REQUEST"){
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        bool status = obj["decision"].toBool();
+        emit sig_undoRequestReceived(roomId,player,status,msg);
+    }else if(type == "UNDO_STATUS"){
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        bool status = obj["decision"].toBool();
+        emit sig_undoStatusReceived(roomId,player,status,msg);
     }else if (type == "GAME_OVER") {
         QString msg = obj["msg"].toString();
         emit sig_gameOverReceived(msg);

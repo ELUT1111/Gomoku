@@ -66,7 +66,14 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_undoButton_clicked()
 {
-    emit signal_undo();
+    if(GameSession::instance()->isOnlineMode())
+    {
+        NetworkManager::instance().sendUndoRequest(true);
+    }
+    else
+    {
+        emit signal_undo();
+    }
 }
 
 
