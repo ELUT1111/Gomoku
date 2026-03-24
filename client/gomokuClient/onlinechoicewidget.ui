@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>498</height>
+    <height>522</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,58 +15,43 @@
   </property>
   <property name="styleSheet">
    <string notr="true">
-    /* 全局基础样式：优化背景色，统一字体抗锯齿 */
+    /* 原有样式保持不变 */
     QWidget {
      background-color: #F5F7FA;
      font-family: &quot;Microsoft YaHei&quot;;
      font-size: 14px;
     }
-    
-    /* 分组框样式：强化卡片质感，优化内边距和圆角 */
     QGroupBox#groupBox, QGroupBox#groupBox_2 {
      border: none;
      background-color: white;
      border-radius: 12px;
      margin-top: 10px;
-     padding: 15px 10px; /* 优化内边距，避免内容贴边 */
+     padding: 15px 10px;
      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #FAFAFA);
     }
-    
-    /* 分组框标题（隐藏） */
     QGroupBox#groupBox::title, QGroupBox#groupBox_2::title {
      subcontrol-origin: margin;
      subcontrol-position: top center;
      padding: 0 10px;
      color: transparent;
     }
-    
-    /* 功能按钮通用样式：优化圆角和高度，增加内边距 */
     QPushButton {
-     border-radius: 10px; /* 更圆润的圆角 */
+     border-radius: 10px;
      border: none;
      font-size: 15px;
-     height: 42px; /* 优化按钮高度，更易点击 */
-     margin: 8px 12px; /* 调整间距，更紧凑 */
+     height: 42px;
+     margin: 8px 12px;
      padding-left: 15px;
      padding-right: 15px;
     }
-    
-    /* 核心功能按钮：优化渐变色彩过渡，增加按下态 */
     QPushButton#addRoomButton, QPushButton#JoinRoomButton, QPushButton#searchGameButton,QPushButton#roomListButton {
      background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6);
      color: white;
-     font-weight: 500; /* 轻微加粗，突出核心按钮 */
+     font-weight: 500;
     }
     QPushButton#addRoomButton:hover, QPushButton#JoinRoomButton:hover, QPushButton#searchGameButton:hover ,QPushButton#roomListButton:hover{
      background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3A5CE7, stop:1 #2BC896);
     }
-    QPushButton#addRoomButton:pressed, QPushButton#JoinRoomButton:pressed, QPushButton#searchGameButton:pressed 
-QPushButton#roomListButton:pressed{
-     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2A4CD7, stop:1 #1BB886);
-     padding-top: 2px; /* 按下轻微位移，模拟点击反馈 */
-    }
-    
-    /* 次要按钮：优化边框和hover态，增加按下态 */
     QPushButton#returnButton_2 {
      background-color: white;
      color: #666666;
@@ -81,32 +66,7 @@ QPushButton#roomListButton:pressed{
      border-color: #FFE6E6;
      background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #FFF5F5);
     }
-    QPushButton#returnButton_2:pressed {
-     background-color: #F0F0F0;
-     border-color: #FFD6D6;
-    }
-    
-    /* 房间列表按钮：适配次要按钮样式，保持视觉统一 */
-    QPushButton#roomListButton {
-     border: 1px solid #EEEEEE;
-     font-size: 14px;
-     height: 38px;
-     border-radius: 8px;
-     margin: 8px 12px;
-    }
-    
-    /* 标题样式：优化字重和间距，增加渐变色彩 */
-    QLabel#lblOnlineTitle {
-     font-size: 24px;
-     font-weight: 600;
-     color: #4A6CF7;
-     alignment: center;
-     padding: 10px 0; /* 增加上下间距 */
-     background-clip: text;
-    }
-    
-    /* 输入框样式：优化圆角、边框和内边距，贴合整体风格 */
-    QLineEdit#lineEdit_roomid {
+    QLineEdit#lineEdit_server {
      border: 1px solid #E5E9F2;
      border-radius: 8px;
      padding: 10px 12px;
@@ -115,17 +75,17 @@ QPushButton#roomListButton:pressed{
      height: 42px;
      margin: 8px 12px;
     }
-    QLineEdit#lineEdit_roomid:focus {
-     border-color: #4A6CF7;
-     background-color: #FAFCFF;
-     outline: none;
+    QPushButton#btnReconnect {
+     background-color: #FF8C38;
+     color: white;
+     font-weight: 500;
     }
-    QLineEdit#lineEdit_roomid::placeholder {
-     color: #C0C6D0;
+    QPushButton#btnReconnect:hover {
+     background-color: #FF7322;
     }
    </string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,3">
+  <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1,2,5">
    <property name="spacing">
     <number>8</number>
    </property>
@@ -139,6 +99,26 @@ QPushButton#roomListButton:pressed{
         </property>
         <property name="alignment">
          <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="widget_server" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayout_server">
+      <item>
+       <widget class="QLineEdit" name="lineEdit_server">
+        <property name="placeholderText">
+         <string>ws://localhost:8080/gomoku/ws</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnReconnect">
+        <property name="text">
+         <string>重连服务器</string>
         </property>
        </widget>
       </item>
@@ -166,28 +146,12 @@ QPushButton#roomListButton:pressed{
          </item>
          <item>
           <widget class="QGroupBox" name="groupBox">
-           <property name="title">
-            <string/>
-           </property>
            <layout class="QVBoxLayout" name="verticalLayout_4">
             <property name="spacing">
              <number>6</number>
             </property>
             <item>
              <widget class="QPushButton" name="addRoomButton">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Microsoft YaHei</family>
-                <pointsize>-1</pointsize>
-                <fontweight>Medium</fontweight>
-               </font>
-              </property>
               <property name="text">
                <string>开房间</string>
               </property>
@@ -195,19 +159,6 @@ QPushButton#roomListButton:pressed{
             </item>
             <item>
              <widget class="QPushButton" name="searchGameButton">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Microsoft YaHei</family>
-                <pointsize>-1</pointsize>
-                <fontweight>Medium</fontweight>
-               </font>
-              </property>
               <property name="text">
                <string>随机匹配</string>
               </property>
@@ -218,24 +169,12 @@ QPushButton#roomListButton:pressed{
          </item>
          <item>
           <widget class="QGroupBox" name="groupBox_2">
-           <property name="title">
-            <string/>
-           </property>
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <property name="spacing">
              <number>6</number>
             </property>
             <item>
              <widget class="QLineEdit" name="lineEdit_roomid">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="echoMode">
-               <enum>QLineEdit::EchoMode::Normal</enum>
-              </property>
               <property name="placeholderText">
                <string>请输入房间号</string>
               </property>
@@ -243,19 +182,6 @@ QPushButton#roomListButton:pressed{
             </item>
             <item>
              <widget class="QPushButton" name="JoinRoomButton">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Microsoft YaHei</family>
-                <pointsize>-1</pointsize>
-                <fontweight>Medium</fontweight>
-               </font>
-              </property>
               <property name="text">
                <string>加入房间</string>
               </property>
@@ -292,18 +218,6 @@ QPushButton#roomListButton:pressed{
         <layout class="QVBoxLayout" name="verticalLayout_5">
          <item>
           <widget class="QPushButton" name="returnButton_2">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="font">
-            <font>
-             <family>Microsoft YaHei</family>
-             <pointsize>-1</pointsize>
-            </font>
-           </property>
            <property name="text">
             <string>返回</string>
            </property>

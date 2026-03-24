@@ -19,6 +19,7 @@ public:
     }
 
     void connectToServer(const QString& url);
+    void disconnectFromServer();
     void sendCreateRoom(); // 创建房间
     void sendJoinRoom(const QString& roomId); // 加入房间
     void sendQuitRoomRequest(); //退出房间

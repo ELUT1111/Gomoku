@@ -19,6 +19,15 @@ void NetworkManager::connectToServer(const QString& url) {
     m_socket.open(QUrl(url));
     qDebug() << "[Network] 正在连接服务端：" << url;
 }
+
+void NetworkManager::disconnectFromServer()
+{
+    if (m_socket.state() != QAbstractSocket::UnconnectedState) {
+        m_socket.close();
+        qDebug() << "[Network] 主动断开服务端连接";
+    }
+}
+
 void NetworkManager::sendJoinRoom(const QString& roomId) {
     if(!isConnected()) {
         emit errorOccurred("未连接到服务端，请先连接");

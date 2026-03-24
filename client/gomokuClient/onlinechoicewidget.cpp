@@ -4,6 +4,7 @@
 #include "NetworkManager.h"
 #include <OnlineSessionManager.h>
 #include <QMessageBox>
+#include <qtimer.h>
 
 OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
     : QWidget(parent)
@@ -11,15 +12,16 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
     , matchDialog(nullptr)
 {
     ui->setupUi(this);
-    NetworkManager::instance().connectToServer("ws://localhost:8080/gomoku/ws");
-    // 绑定网络连接成功信号
-    // connect(&NetworkManager::instance(), &NetworkManager::connected, this, [](){
-    //     QMessageBox::information(nullptr, "网络提示", "已成功连接到五子棋服务端！");
-    // });
-    // 绑定网络错误信号
-    connect(&NetworkManager::instance(), &NetworkManager::errorOccurred, this, [](QString msg){
-        QMessageBox::warning(nullptr, "网络错误", msg);
-    });
+
+    initToast();
+
+    m_btnOriginalText = ui->btnReconnect->text();
+    m_btnOriginalStyle = ui->btnReconnect->styleSheet();
+
+    connect(&NetworkManager::instance(), &NetworkManager::connected, this, &OnlineChoiceWidget::onServerConnected);
+    connect(&NetworkManager::instance(), &NetworkManager::errorOccurred, this, &OnlineChoiceWidget::onServerError);
+
+    ui->lineEdit_server->setText(WS_SERVER_URL);
 
     // 绑定创建房间信息返回信号→跳转到房间页面
     QSharedPointer<QMetaObject::Connection> conn = QSharedPointer<QMetaObject::Connection>::create();
@@ -71,6 +73,10 @@ OnlineChoiceWidget::OnlineChoiceWidget(QWidget *parent)
                         }
                     });
 
+    QTimer::singleShot(0, this, [this](){
+        // 初次默认连接
+        NetworkManager::instance().connectToServer(WS_SERVER_URL);
+    });
 }
 
 OnlineChoiceWidget::~OnlineChoiceWidget()
@@ -129,3 +135,106 @@ void OnlineChoiceWidget::on_roomListButton_clicked()
     PageManager::instance()->switchToPage(4); // 4=房间列表
 }
 
+
+void OnlineChoiceWidget::on_btnReconnect_clicked()
+{
+    // 获取输入的服务器地址，为空则使用默认地址
+    QString serverUrl = ui->lineEdit_server->text().trimmed();
+    if (serverUrl.isEmpty()) {
+        serverUrl = WS_SERVER_URL;
+        ui->lineEdit_server->setText(serverUrl);
+    }
+
+    ui->btnReconnect->setEnabled(false);
+    ui->btnReconnect->setText("🔄 正在连接...");
+    ui->btnReconnect->setStyleSheet(R"(
+        QPushButton {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            height: 36px;
+        }
+    )");
+
+    // 主动断开旧连接
+    NetworkManager::instance().disconnectFromServer();
+
+    // 重新连接
+    NetworkManager::instance().connectToServer(serverUrl);
+    // QMessageBox::information(this, "提示", QString("正在重连服务器：\n%1").arg(serverUrl));
+}
+
+void OnlineChoiceWidget::initToast()
+{
+    // 创建悬浮标签
+    m_toastLabel = new QLabel(this);
+    m_toastLabel->setAlignment(Qt::AlignCenter);
+    m_toastLabel->setStyleSheet(R"(
+        QLabel {
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 18px;
+            background-color: rgba(46, 204, 113, 0.6);  /* 成功绿色 */
+        }
+    )");
+    m_toastLabel->hide();  // 默认隐藏
+    // m_toastLabel->setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
+    m_toastLabel->setAttribute(Qt::WA_TransparentForMouseEvents); // 不响应鼠标事件
+
+    // 自动隐藏定时器（2秒后消失）
+    m_toastTimer = new QTimer(this);
+    m_toastTimer->setSingleShot(true);
+    connect(m_toastTimer, &QTimer::timeout, this, &OnlineChoiceWidget::hideToast);
+}
+
+void OnlineChoiceWidget::showToast(const QString &text, bool isSuccess)
+{
+    m_toastLabel->setText(text);
+    // 成功=绿色，失败=红色
+    if(isSuccess) {
+        m_toastLabel->setStyleSheet("background-color: rgba(46, 204, 113, 0.6); color:white; font-size:14px; padding:8px 20px; border-radius:18px;");
+    } else {
+        m_toastLabel->setStyleSheet("background-color: rgba(255, 82, 82, 0.6); color:white; font-size:14px; padding:8px 20px; border-radius:18px;");
+    }
+
+    m_toastLabel->adjustSize();
+
+    // 定位到界面底部居中
+    int x = (this->width() - m_toastLabel->width()) / 2;
+    int y = this->height() - 30;
+    m_toastLabel->move(x, y);
+    m_toastLabel->show();
+    m_toastTimer->start(2000); // 2秒后自动隐藏
+}
+
+void OnlineChoiceWidget::hideToast()
+{
+    m_toastLabel->hide();
+}
+
+void OnlineChoiceWidget::onServerConnected()
+{
+    // 重置按钮为原始状态
+    ui->btnReconnect->setEnabled(true);
+    ui->btnReconnect->setText(m_btnOriginalText);
+    ui->btnReconnect->setStyleSheet(m_btnOriginalStyle);
+
+    // 显示成功悬浮提示
+    showToast("✅ 服务器连接成功", true);
+}
+
+void OnlineChoiceWidget::onServerError(QString msg)
+{
+    // 重置按钮为原始状态
+    ui->btnReconnect->setEnabled(true);
+    ui->btnReconnect->setText(m_btnOriginalText);
+    ui->btnReconnect->setStyleSheet(m_btnOriginalStyle);
+
+    // 显示失败悬浮提示
+    showToast("❌ 连接失败：" + msg, false);
+}
