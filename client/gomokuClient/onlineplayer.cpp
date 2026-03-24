@@ -9,14 +9,19 @@ OnlinePlayer::OnlinePlayer(QObject *parent, ChessType chessType)
     qDebug() << "[OnlinePlayer] 初始化在线玩家：" << m_onlineTag;
 }
 
-// 自身落子→发送到服务端+触发本地绘子
+void OnlinePlayer::setChessType(ChessType newType)
+{
+    myChessType = newType;
+    m_onlineTag = (newType == ChessType::BLACK) ? "BLACK" : "WHITE";
+    qDebug() << "[OnlinePlayer] 玩家棋子颜色已更新为：" << m_onlineTag;
+}
+
+// 自身落子→发送到服务端
 void OnlinePlayer::slot_onMouseClicked(int x, int y)
 {
     qDebug() << "[OnlinePlayer] 自身尝试落子：" << x << "," << y << "，标识：" << m_onlineTag;
     // 发送落子信息到服务端
     m_netManager.sendChessMove(x, y, m_onlineTag);
-    // 触发本地绘子
-    //emit signal_tryPlaceChess(x, y, myChessType);
 }
 
 // 处理对手落子→触发本地绘子

@@ -9,7 +9,6 @@ import com.elut1111.gomokuservice.manager.MatchManager;
 import com.elut1111.gomokuservice.manager.RoomManager;
 import com.elut1111.gomokuservice.util.FiveInLineCheckUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -61,10 +60,11 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 case "CREATE_ROOM" -> handleCreateRoom(session, gomokuMsg);
                 case "JOIN_ROOM" -> handleJoinRoom(session, gomokuMsg);
                 case "CHESS_MOVE" -> handleChessMove(session, gomokuMsg);
-                case "UNDO_REQUEST" -> handleUndoRequest(session, gomokuMsg);    // 新增：发起悔棋请求
-                case "UNDO_CHOICE" -> handleUndoChoice(session, gomokuMsg);    // 新增：确认悔棋
+                case "UNDO_REQUEST" -> handleUndoRequest(session, gomokuMsg);
+                case "UNDO_CHOICE" -> handleUndoChoice(session, gomokuMsg);
                 case "PLAYER_READY" -> handlePlayerReady(session, gomokuMsg);
                 case "START_GAME" -> handleStartGame(session, gomokuMsg);
+                case "REPLAY_CHOICE" -> handleReplayChoice(session, gomokuMsg);
                 case "QUIT_ROOM" -> handleQuitRoom(session, gomokuMsg);
                 case "REFRESH_ROOM_LIST" -> handleRefreshRoomList(session, gomokuMsg);
                 case "RANDOM_MATCH" -> handleRandomMatch(session, gomokuMsg);
@@ -96,20 +96,34 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         String sessionId = session.getId();
         ONLINE_SESSIONS.remove(sessionId);
         matchManager.removeFromMatchQueue(session); // 清理排队队列
-        roomManager.removeSession(session); // 清理房间关联
-        log.info("客户端断开连接，会话ID：{}，当前在线数：{}", sessionId, ONLINE_SESSIONS.size());
 
         // 通知对手：玩家掉线
         String roomId = roomManager.getRoomIdBySessionId(sessionId);
         if (roomId != null) {
+            Room room = roomManager.getRoomByRoomId(roomId);
             WebSocketSession opponent = roomManager.getOpponent(roomId, session);
-            if (opponent != null && opponent.isOpen()) {
-                GomokuMessage msg = new GomokuMessage();
-                msg.setType("GAME_OVER");
-                msg.setMsg("对手已掉线，游戏结束！");
-                sendMsgToSession(opponent, msg);
+            if (room != null && opponent != null && opponent.isOpen()) {
+                // 重开协商中掉线，通知对方重开取消
+                if (room.isReplayNegotiating()) {
+                    GomokuMessage cancelMsg = new GomokuMessage();
+                    cancelMsg.setType("REPLAY_CANCEL");
+                    cancelMsg.setRoomId(roomId);
+                    cancelMsg.setMsg("对手已掉线，重开协商取消");
+                    sendMsgToSession(opponent, cancelMsg);
+                    room.resetReplayStatus();
+                }
+                // 非重开状态，通知游戏结束
+                else {
+                    GomokuMessage msg = new GomokuMessage();
+                    msg.setType("GAME_OVER");
+                    msg.setMsg("对手已掉线，游戏结束！");
+                    sendMsgToSession(opponent, msg);
+                }
             }
         }
+
+        roomManager.removeSession(session); // 清理房间关联
+        log.info("客户端断开连接，会话ID：{}，当前在线数：{}", sessionId, ONLINE_SESSIONS.size());
     }
 
     /**
@@ -202,6 +216,19 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
 
             Room room = roomManager.getRoomByRoomId(roomId);
             if (room == null) return;
+
+            // 重开协商中，通知对手重开取消
+            if (room.isReplayNegotiating()) {
+                WebSocketSession opponent = roomManager.getOpponent(roomId, session);
+                if (opponent != null && opponent.isOpen()) {
+                    GomokuMessage cancelMsg = new GomokuMessage();
+                    cancelMsg.setType("REPLAY_CANCEL");
+                    cancelMsg.setRoomId(roomId);
+                    cancelMsg.setMsg("对手已退出房间，重开取消");
+                    sendMsgToSession(opponent, cancelMsg);
+                }
+                room.resetReplayStatus();
+            }
 
             // 获取对手玩家
             WebSocketSession opponentSession = roomManager.getOpponent(roomId, session);
@@ -334,8 +361,12 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 if (opponent != null && opponent.isOpen()) {
                     sendMsgToSession(opponent, winMsg);
                 }
-                // 销毁房间
-                roomManager.destroyRoom(roomId);
+//                // 销毁房间
+//                roomManager.destroyRoom(roomId);
+                // 进入重开选择
+                room.setStatus(Room.RoomStatus.END);
+                room.resetReplayStatus();
+                room.setReplayNegotiating(true);
                 return;
             }
 
@@ -349,7 +380,11 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 if (opponent != null && opponent.isOpen()) {
                     sendMsgToSession(opponent, drawMsg);
                 }
-                roomManager.destroyRoom(roomId);
+//                roomManager.destroyRoom(roomId);
+
+                room.setStatus(Room.RoomStatus.END);
+                room.resetReplayStatus();
+                room.setReplayNegotiating(true);
                 return;
             }
 
@@ -602,5 +637,89 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             sendErrorMsg(session, "获取房间列表失败");
         }
     }
+    private void handleReplayChoice(WebSocketSession session, GomokuMessage msg) {
+        try {
+            String roomId = msg.getRoomId();
+            boolean agreeReplay = msg.isDecision();
+            if (roomId == null) {
+                sendErrorMsg(session, "房间ID不能为空");
+                return;
+            }
+            Room room = roomManager.getRoomByRoomId(roomId);
+            if (room == null || !room.isReplayNegotiating()) {
+                sendErrorMsg(session, "当前不在重开协商中");
+                return;
+            }
+            Player currentPlayer = roomManager.getPlayerBySession(room, session);
+            if (currentPlayer == null) {
+                sendErrorMsg(session, "玩家信息异常");
+                return;
+            }
+            String playerColor = currentPlayer.getColor();
+            WebSocketSession opponent = roomManager.getOpponent(roomId, session);
 
+            // 玩家拒绝重开
+            if (!agreeReplay) {
+                // 通知对方重开取消
+                if (opponent != null && opponent.isOpen()) {
+                    GomokuMessage cancelMsg = new GomokuMessage();
+                    cancelMsg.setType("REPLAY_CANCEL");
+                    cancelMsg.setRoomId(roomId);
+                    cancelMsg.setMsg("对手拒绝再来一局");
+                    sendMsgToSession(opponent, cancelMsg);
+                }
+                // 重置重开状态
+                room.resetReplayStatus();
+                // 退出房间，销毁无玩家的房间
+                roomManager.quitRoom(session, roomId);
+                // 回复玩家
+                GomokuMessage resp = new GomokuMessage();
+                resp.setType("REPLAY_CANCEL");
+                resp.setRoomId(roomId);
+                resp.setMsg("已退出房间");
+                sendMsgToSession(session, resp);
+                return;
+            }
+
+            // 玩家同意重开，记录选择
+            room.setPlayerReplayChoice(playerColor, true);
+            // 通知对方已同意
+            if (opponent != null && opponent.isOpen()) {
+                GomokuMessage notifyMsg = new GomokuMessage();
+                notifyMsg.setType("REPLAY_CHOICE");
+                notifyMsg.setRoomId(roomId);
+                notifyMsg.setPlayer(playerColor);
+                notifyMsg.setDecision(true);
+                notifyMsg.setMsg("对手已同意再来一局");
+                sendMsgToSession(opponent, notifyMsg);
+            }
+
+            // 双方都同意重开，执行重开逻辑
+            if (room.isAllAgreeReplay()) {
+                // 交换双方颜色
+                room.swapPlayerColorForReplay();
+                // 重置房间状态
+                room.resetRoomForReplay();
+                // 通知双方重开成功
+                GomokuMessage startMsg = new GomokuMessage();
+                startMsg.setType("REPLAY_START");
+                startMsg.setRoomId(roomId);
+                startMsg.setMsg("双方已同意再来一局，交换颜色后游戏即将开始");
+                // 分别通知双方新的颜色
+                if (room.getBlackPlayer() != null && room.getBlackPlayer().getSession().isOpen()) {
+                    startMsg.setPlayer("BLACK");
+                    sendMsgToSession(room.getBlackPlayer().getSession(), startMsg);
+                }
+                if (room.getWhitePlayer() != null && room.getWhitePlayer().getSession().isOpen()) {
+                    startMsg.setPlayer("WHITE");
+                    sendMsgToSession(room.getWhitePlayer().getSession(), startMsg);
+                }
+                room.setStatus(Room.RoomStatus.PLAYING);
+                log.info("[handler] 房间{}重开成功，双方已交换颜色", roomId);
+            }
+        } catch (Exception e) {
+            log.error("[handler] 重开选择处理异常，会话ID：{}", session.getId(), e);
+            sendErrorMsg(session, "重开请求处理失败");
+        }
+    }
 }

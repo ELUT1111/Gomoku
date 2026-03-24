@@ -13,6 +13,8 @@ public:
     void setOnlinePlayerTag(const QString& tag) { m_onlineTag = tag; }
     QString getOnlinePlayerTag() const { return m_onlineTag; }
 
+    void setChessType(ChessType newType);
+
 public slots:
     // 重写父类方法：处理自身落子（触发网络发送）
     void slot_onMouseClicked(int x, int y) override;

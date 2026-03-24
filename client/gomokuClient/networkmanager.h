@@ -30,6 +30,7 @@ public:
     void sendReadyRequest(bool isReady);
     void sendStartGameRequest();
     void sendCancelMatchRequest(); // 取消匹配
+    void sendReplayChoice(bool agreeReplay);
 
     QString getCurrentSessionId() { return m_sessionId; }
     bool isConnected() { return m_socket.state() == QAbstractSocket::ConnectedState; }
@@ -54,6 +55,9 @@ signals:
     void sig_placeChessStatusReceived(int x,int y,int color,bool status);
     void sig_gameOverReceived(QString msg); // 游戏结束
     void sig_errorReceived(QString msg); // 错误信息
+    void sig_replayChoiceReceived(QString roomId, QString player, bool status, QString msg); // 对方重开选择
+    void sig_replayStartReceived(QString roomId, QString newColor, QString msg); // 重开成功
+    void sig_replayCancelReceived(QString roomId, QString msg); // 重开取消
 
 private slots:
     void onTextMessageReceived(QString message);

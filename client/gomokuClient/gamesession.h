@@ -13,7 +13,7 @@
 
 struct ChessHistory
 {
-    int index; // 1-based
+    int index;
     QPoint pos;
     AbstractPlayer* player;
 
@@ -47,6 +47,10 @@ public:
     void setOnlinePlayerTag(ChessType chessType, const QString& tag);
     // 在线模式：获取当前在线玩家
     OnlinePlayer* getOnlinePlayer(ChessType chessType);
+    // 在线模式：重置游戏（再来一局用）
+    void resetOnlineGameForReplay();
+    // 在线模式：更新玩家棋子颜色
+    void updateOnlinePlayerChessType(ChessType oldType, ChessType newType);
 
     BoardDataPtr getBoardData() const { return boardData; }
 public:

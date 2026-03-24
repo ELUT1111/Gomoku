@@ -162,7 +162,22 @@ void NetworkManager::onTextMessageReceived(QString message) {
     }else if (type == "GAME_OVER") {
         QString msg = obj["msg"].toString();
         emit sig_gameOverReceived(msg);
-    } else if (type == "ERROR") {
+    }else if (type == "REPLAY_START") {
+        QString roomId = obj["roomId"].toString();
+        QString newColor = obj["player"].toString();
+        QString msg = obj["msg"].toString();
+        emit sig_replayStartReceived(roomId, newColor, msg);
+    }else if (type == "REPLAY_CHOICE") {
+        QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
+        bool status = obj["decision"].toBool();
+        QString msg = obj["msg"].toString();
+        emit sig_replayChoiceReceived(roomId, player, status, msg);
+    }else if (type == "REPLAY_CANCEL") {
+        QString roomId = obj["roomId"].toString();
+        QString msg = obj["msg"].toString();
+        emit sig_replayCancelReceived(roomId, msg);
+    }else if (type == "ERROR") {
         QString msg = obj["msg"].toString();
         emit sig_errorReceived(msg);
     }
@@ -209,4 +224,17 @@ void NetworkManager::sendCancelMatchRequest()
     obj["type"] = "CANCEL_MATCH";
     m_socket.sendTextMessage(QJsonDocument(obj).toJson(QJsonDocument::Compact));
     qDebug() << "[Network] 发送取消匹配请求";
+}
+
+void NetworkManager::sendReplayChoice(bool agreeReplay)
+{
+    if(!isConnected()) {
+        emit errorOccurred("未连接到服务端，请求失败");
+        return;
+    }
+    m_socket.sendTextMessage(serializeMsg("REPLAY_CHOICE",
+                                          OnlineSessionManager::instance()->getCurrentRoomId(),
+                                          OnlineSessionManager::instance()->getMyOnlineColor(),
+                                          -1, -1, "", agreeReplay));
+    qDebug() << "[Network] 发送再来一局选择：" << (agreeReplay ? "同意" : "拒绝");
 }

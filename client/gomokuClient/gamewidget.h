@@ -56,6 +56,8 @@ private:
     QGraphicsPixmapItem* boardItem;
     QProgressDialog* undoWaitDialog;    // 悔棋等待遮罩
     QWidget* undoConfirmPanel;   // 悔棋确认面板
+    QDialog* m_gameOverDialog = nullptr;
+    bool m_isReplayNegotiating = false;
     GameSession* session;
 
     GamemodeType currentGamemode;
@@ -92,6 +94,12 @@ public slots:
     void slot_drawChessForOnline(int x,int y,int color,bool status);
     void slot_switchTurn();
     void slot_playerWin(AbstractPlayer* player);
+
+    void slot_onlineGameOver(QString msg);
+    // 再来一局相关槽函数
+    void slot_onReplayChoiceReceived(QString roomId, QString player, bool status, QString msg);
+    void slot_onReplayStartReceived(QString roomId, QString newColor, QString msg);
+    void slot_onReplayCancelReceived(QString roomId, QString msg);
 };
 
 #endif // GAMEWIDGET_H

@@ -103,11 +103,7 @@ void GameWidget::initConnect()
     // 绑定在线游戏落子状态返回信号
     connect(&NetworkManager::instance(),&NetworkManager::sig_placeChessStatusReceived,this,&GameWidget::slot_drawChessForOnline);
     // 绑定在线游戏结束信号
-    connect(GameSession::instance(), &GameSession::sig_onlineGameOver, this, [this](QString msg){
-        QMessageBox::information(this, "游戏结束", msg);
-        slot_reset();
-        // TODO
-    });
+    connect(GameSession::instance(), &GameSession::sig_onlineGameOver, this, &GameWidget::slot_onlineGameOver);
     // 绑定收到悔棋请求信号
     connect(&NetworkManager::instance(),&NetworkManager::sig_undoRequestReceived,this,[this](QString roomId,QString player,bool status){
 
@@ -170,6 +166,14 @@ void GameWidget::initConnect()
     connect(GameSession::instance(), &GameSession::sig_onlineError, this, [this](QString msg){
         QMessageBox::warning(this, "在线错误", msg);
     });
+    // 绑定再来一局相关信号
+    connect(&NetworkManager::instance(), &NetworkManager::sig_replayChoiceReceived,
+            this, &GameWidget::slot_onReplayChoiceReceived);
+    connect(&NetworkManager::instance(), &NetworkManager::sig_replayStartReceived,
+            this, &GameWidget::slot_onReplayStartReceived);
+    connect(&NetworkManager::instance(), &NetworkManager::sig_replayCancelReceived,
+            this, &GameWidget::slot_onReplayCancelReceived);
+
     // 监听 AI 思考状态
     connect(GameSession::instance(), &GameSession::signal_switchTurn, this, [this]() {
         if(GameSession::instance()->gamemode == GamemodeType::ONLINE) return;
@@ -263,11 +267,11 @@ void GameWidget::undoForUI()
 void GameWidget::clearBoardForUI()
 {
 
-    if(currentGamemode == GamemodeType::ONLINE)
-    {
-        // QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
-        return;
-    }
+    // if(currentGamemode == GamemodeType::ONLINE)
+    // {
+    //     // QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
+    //     return;
+    // }
     currentColor = 1;
     nextColor = 2;
     //initBoard();
@@ -387,6 +391,8 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
 {
     QWidget::mousePressEvent(event);
 
+    // 悔棋请求中禁用
+    if(undoWaitDialog != nullptr && undoWaitDialog->isVisible()) return;
     if(event->button() == Qt::LeftButton)
     {
         QPoint grid = posToGrid(event->pos());
@@ -505,4 +511,117 @@ void GameWidget::slot_playerWin(AbstractPlayer *player)
     QString winner = (player == GameSession::instance()->player1) ? "黑方":"白方";
     QMessageBox::information(this,"游戏结束",winner+"获胜!");
     slot_reset();
+}
+
+void GameWidget::slot_onlineGameOver(QString msg)
+{
+    if(m_isReplayNegotiating) return;
+    m_isReplayNegotiating = true;
+
+    // 创建自定义游戏结束弹窗
+    m_gameOverDialog = new QDialog(this);
+    m_gameOverDialog->setWindowTitle("游戏结束");
+    m_gameOverDialog->setFixedSize(320, 200);
+    m_gameOverDialog->setWindowModality(Qt::WindowModal);
+    m_gameOverDialog->setStyleSheet(
+        "QDialog { background-color: #F5F7FA; border-radius: 12px; }"
+        "QLabel { font-size: 18px; font-weight: bold; color: #4A6CF7; }"
+        "QPushButton { border-radius: 8px; border: none; font-size: 14px; height: 36px; }"
+        "QPushButton#btnReplay { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4A6CF7, stop:1 #35D8A6); color: white; }"
+        "QPushButton#btnQuit { background-color: white; color: #666666; border: 1px solid #EEEEEE; }"
+        );
+
+    QVBoxLayout* layout = new QVBoxLayout(m_gameOverDialog);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(20);
+
+    // 结果文本
+    QLabel* resultLabel = new QLabel(msg, m_gameOverDialog);
+    resultLabel->setAlignment(Qt::AlignCenter);
+    resultLabel->setWordWrap(true);
+    layout->addWidget(resultLabel);
+
+    // 按钮区域
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    btnLayout->setSpacing(15);
+
+    QPushButton* btnReplay = new QPushButton("再来一局", m_gameOverDialog);
+    btnReplay->setObjectName("btnReplay");
+    QPushButton* btnQuit = new QPushButton("退出房间", m_gameOverDialog);
+    btnQuit->setObjectName("btnQuit");
+
+    btnLayout->addWidget(btnReplay);
+    btnLayout->addWidget(btnQuit);
+    layout->addLayout(btnLayout);
+
+    // 按钮点击事件
+    connect(btnReplay, &QPushButton::clicked, this, [this](){
+        // 发送同意再来一局
+        NetworkManager::instance().sendReplayChoice(true);
+        m_gameOverDialog->close();
+        m_gameOverDialog->deleteLater();
+        m_gameOverDialog = nullptr;
+        // 显示等待提示
+        // QMessageBox::information(this, "提示", "已发送再来一局请求，等待对方回复");
+    });
+
+    connect(btnQuit, &QPushButton::clicked, this, [this](){
+        // 发送拒绝再来一局
+        NetworkManager::instance().sendReplayChoice(false);
+        m_isReplayNegotiating = false;
+        m_gameOverDialog->close();
+        m_gameOverDialog->deleteLater();
+        m_gameOverDialog = nullptr;
+        // 清空棋盘，返回在线选择页
+        clearBoardForUI();
+        PageManager::instance()->switchToPage(2);
+    });
+
+    m_gameOverDialog->show();
+}
+
+void GameWidget::slot_onReplayChoiceReceived(QString roomId, QString player, bool status, QString msg)
+{
+    if(!m_isReplayNegotiating) return;
+    // QMessageBox::information(this, "提示", msg);
+}
+
+void GameWidget::slot_onReplayStartReceived(QString roomId, QString newColor, QString msg)
+{
+    m_isReplayNegotiating = false;
+    // QMessageBox::information(this, "再来一局", msg);
+
+    // 更新本地玩家颜色
+    QString oldColor = OnlineSessionManager::instance()->getMyOnlineColor();
+    OnlineSessionManager::instance()->setMyOnlineColor(newColor);
+
+    //更新游戏会话中玩家的棋子类型
+    ChessType oldChessType = (oldColor == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+    ChessType newChessType = (newColor == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+    GameSession::instance()->updateOnlinePlayerChessType(oldChessType, newChessType);
+
+    // 重置游戏与UI
+    clearBoardForUI();
+    GameSession::instance()->resetOnlineGameForReplay();
+
+    // 重新绑定鼠标点击事件
+    disconnect(this, &GameWidget::signal_mouseClicked, nullptr, nullptr);
+    OnlinePlayer* myPlayer = GameSession::instance()->getOnlinePlayer(newChessType);
+    if(myPlayer)
+    {
+        connect(this, &GameWidget::signal_mouseClicked,
+                myPlayer, &AbstractPlayer::slot_onMouseClicked, Qt::UniqueConnection);
+    }
+
+    qDebug() << "[gameWidget] 再来一局初始化完成，新颜色：" << newColor;
+}
+
+void GameWidget::slot_onReplayCancelReceived(QString roomId, QString msg)
+{
+    m_isReplayNegotiating = false;
+    QMessageBox::warning(this, "重开取消", msg);
+
+    // 清空棋盘，返回在线选择页
+    clearBoardForUI();
+    PageManager::instance()->switchToPage(2);
 }

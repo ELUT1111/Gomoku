@@ -213,6 +213,24 @@ OnlinePlayer* GameSession::getOnlinePlayer(ChessType chessType)
     return (chessType == ChessType::BLACK) ? m_onlineBlackPlayer : m_onlineWhitePlayer;
 }
 
+void GameSession::resetOnlineGameForReplay()
+{
+    qDebug() << "[session] 在线模式再来一局，重置游戏";
+    boardData->clear();
+    chessHistory.clear();
+    emit signal_switchTurn();
+}
+
+void GameSession::updateOnlinePlayerChessType(ChessType oldType, ChessType newType)
+{
+    OnlinePlayer* player = getOnlinePlayer(oldType);
+    if(player)
+    {
+        player->setChessType(newType);
+        qDebug() << "[session] 在线玩家颜色更新：" << int(oldType) << "→" << int(newType);
+    }
+}
+
 // 处理对手落子→转发给在线玩家
 void GameSession::slot_handleOpponentMove(int x, int y, int color)
 {

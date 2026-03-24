@@ -20,13 +20,13 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // 注册WebSocket端点，兼容Qt客户端
+        // 注册WebSocket端点
         registry.addHandler(gomokuWebSocketHandler, "/gomoku/ws")
                 .setAllowedOriginPatterns("*");
     }
 
     /**
-     * WebSocket超时配置，避免客户端长时间无操作断开
+     * WebSocket超时配置
      */
     @Bean
     public ServletServerContainerFactoryBean createWebSocketContainer() {
