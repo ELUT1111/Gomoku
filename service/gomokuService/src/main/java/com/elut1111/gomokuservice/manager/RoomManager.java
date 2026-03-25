@@ -185,8 +185,9 @@ public class RoomManager {
             room.setCurrentPlayer("BLACK");
 
             // 重置准备状态
-            Player remainingPlayer = room.getBlackPlayer() != null ? room.getBlackPlayer() : room.getWhitePlayer();
-            if (remainingPlayer != null) remainingPlayer.setReady(false);
+            Player remainingPlayer = room.getBlackPlayer() != null ?
+                    room.getBlackPlayer() : room.getWhitePlayer();
+            if (remainingPlayer != null) remainingPlayer.setReady(true);
             log.info("[RoomManager] 玩家退出，房间重置等待状态：{}", roomId);
         }
 

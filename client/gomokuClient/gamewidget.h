@@ -96,10 +96,11 @@ public slots:
     void slot_playerWin(AbstractPlayer* player);
 
     void slot_onlineGameOver(QString msg);
+    void slot_onGameOverDisconnectReceived(QString roomId,QString msg);
     // 再来一局相关槽函数
     void slot_onReplayChoiceReceived(QString roomId, QString player, bool status, QString msg);
     void slot_onReplayStartReceived(QString roomId, QString newColor, QString msg);
-    void slot_onReplayCancelReceived(QString roomId, QString msg);
+    void slot_onReplayCancelReceived(QString roomId, QString player,QString msg);
 };
 
 #endif // GAMEWIDGET_H

@@ -115,10 +115,11 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 // 非重开状态，通知游戏结束
                 else {
                     GomokuMessage msg = new GomokuMessage();
-                    msg.setType("GAME_OVER");
+                    msg.setType("GAME_OVER_DISCONNECT");
                     msg.setMsg("对手已掉线，游戏结束！");
                     sendMsgToSession(opponent, msg);
                 }
+                room.getChessBoard().clearBoard();
             }
         }
 
@@ -216,6 +217,9 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
 
             Room room = roomManager.getRoomByRoomId(roomId);
             if (room == null) return;
+
+            // 重置棋盘
+            room.getChessBoard().clearBoard();
 
             // 重开协商中，通知对手重开取消
             if (room.isReplayNegotiating()) {
@@ -352,6 +356,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             // 五子连珠胜负判断
             boolean isWin = FiveInLineCheckUtil.checkFiveInLine(x, y, playerColor, chessBoard);
             if (isWin) {
+                room.getChessBoard().clearBoard();
                 GomokuMessage winMsg = new GomokuMessage();
                 winMsg.setType("GAME_OVER");
                 winMsg.setRoomId(roomId);
@@ -372,6 +377,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
 
             // 校验是否平局（棋盘下满）
             if (chessBoard.getChessCount() >= ChessBoard.BOARD_SIZE * ChessBoard.BOARD_SIZE) {
+                room.getChessBoard().clearBoard();
                 GomokuMessage drawMsg = new GomokuMessage();
                 drawMsg.setType("GAME_OVER");
                 drawMsg.setRoomId(roomId);
@@ -380,8 +386,6 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 if (opponent != null && opponent.isOpen()) {
                     sendMsgToSession(opponent, drawMsg);
                 }
-//                roomManager.destroyRoom(roomId);
-
                 room.setStatus(Room.RoomStatus.END);
                 room.resetReplayStatus();
                 room.setReplayNegotiating(true);
@@ -594,6 +598,7 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
         String roomId = roomManager.getRoomIdBySessionId(session.getId());
         if (roomId == null) return;
         Room room = roomManager.getRoomByRoomId(roomId);
+        room.getChessBoard().clearBoard();
         Player player = roomManager.getPlayerBySession(room, session);
 
         if (player == null || !"BLACK".equals(player.getColor())) {
@@ -665,17 +670,33 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                     GomokuMessage cancelMsg = new GomokuMessage();
                     cancelMsg.setType("REPLAY_CANCEL");
                     cancelMsg.setRoomId(roomId);
+                    cancelMsg.setPlayer(playerColor);
                     cancelMsg.setMsg("对手拒绝再来一局");
                     sendMsgToSession(opponent, cancelMsg);
                 }
                 // 重置重开状态
                 room.resetReplayStatus();
+
+                // 记录退出者是否为房主
+                boolean isOwnerQuit = room.isOwner(session);
+
                 // 退出房间，销毁无玩家的房间
                 roomManager.quitRoom(session, roomId);
+
+                if (opponent != null && opponent.isOpen() && isOwnerQuit && room.getStatus() != Room.RoomStatus.CLOSE) {
+                    GomokuMessage ownerMsg = new GomokuMessage();
+                    ownerMsg.setType("ROOM_OWNER_CHANGE");
+                    ownerMsg.setRoomId(roomId);
+                    ownerMsg.setPlayer("BLACK");
+                    ownerMsg.setMsg("对手拒绝重开并退出，你已成为房间房主");
+                    sendMsgToSession(opponent, ownerMsg);
+                }
+
                 // 回复玩家
                 GomokuMessage resp = new GomokuMessage();
                 resp.setType("REPLAY_CANCEL");
                 resp.setRoomId(roomId);
+                resp.setPlayer(playerColor);
                 resp.setMsg("已退出房间");
                 sendMsgToSession(session, resp);
                 return;

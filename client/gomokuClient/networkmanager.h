@@ -58,7 +58,8 @@ signals:
     void sig_errorReceived(QString msg); // 错误信息
     void sig_replayChoiceReceived(QString roomId, QString player, bool status, QString msg); // 对方重开选择
     void sig_replayStartReceived(QString roomId, QString newColor, QString msg); // 重开成功
-    void sig_replayCancelReceived(QString roomId, QString msg); // 重开取消
+    void sig_replayCancelReceived(QString roomId, QString player, QString msg); // 重开取消
+    void sig_gameOverDisconnectReceived(QString roomId, QString msg);
 
 private slots:
     void onTextMessageReceived(QString message);

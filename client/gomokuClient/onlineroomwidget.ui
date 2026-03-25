@@ -184,7 +184,7 @@
            <string notr="true">
             border-radius: 40px;
             background-color: #4A6CF7;
-            image: url(:/res/avatar_host.png); /* 替换为实际头像路径 */
+            image: url(:/res/avatar_host.png); 
            </string>
           </property>
           <property name="scaledContents">
@@ -256,7 +256,7 @@
            <string notr="true">
             border-radius: 40px;
             background-color: #CCCCCC;
-            image: url(:/res/avatar_opponent.png); /* 替换为实际头像路径 */
+            image: url(:/res/avatar_opponent.png);
            </string>
           </property>
           <property name="scaledContents">

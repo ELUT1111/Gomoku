@@ -7,18 +7,18 @@
 AIPlayer::AIPlayer(QObject *parent, ChessType chessType, AIType difficulty)
     : AbstractPlayer{parent, chessType}, difficulty(difficulty)
 {
-    // 1. 创建线程和 worker
+    // 创建线程和 worker
     aiThread = new QThread(this);
     thinkWorker = new AIThinkWorker(nullptr, chessType, difficulty);
     thinkWorker->moveToThread(aiThread);
 
-    // 2. 连接信号槽（线程安全）
+    // 连接信号槽
     connect(aiThread, &QThread::finished, thinkWorker, &QObject::deleteLater);
     connect(this, &AIPlayer::startThinking, thinkWorker, &AIThinkWorker::doThink);
     connect(thinkWorker, &AIThinkWorker::thinkFinished, this, &AIPlayer::onThinkFinished);
     connect(thinkWorker, &AIThinkWorker::thinkStarted, this, &AIPlayer::thinkStarted);
 
-    // 3. 启动线程（线程处于等待状态，仅收到信号时执行）
+    // 启动线程
     aiThread->start();
 }
 

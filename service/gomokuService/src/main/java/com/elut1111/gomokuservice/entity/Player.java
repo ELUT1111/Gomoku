@@ -16,6 +16,7 @@ public class Player implements Serializable {
      * 玩家颜色：BLACK/WHITE
      */
     @Setter
+    @Getter
     private String color;
     /**
      * 玩家WebSocket会话

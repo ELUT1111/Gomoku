@@ -173,7 +173,8 @@ void GameWidget::initConnect()
             this, &GameWidget::slot_onReplayStartReceived);
     connect(&NetworkManager::instance(), &NetworkManager::sig_replayCancelReceived,
             this, &GameWidget::slot_onReplayCancelReceived);
-
+    connect(&NetworkManager::instance(), &NetworkManager::sig_gameOverDisconnectReceived,
+            this, &GameWidget::slot_onGameOverDisconnectReceived);
     // 监听 AI 思考状态
     connect(GameSession::instance(), &GameSession::signal_switchTurn, this, [this]() {
         if(GameSession::instance()->gamemode == GamemodeType::ONLINE) return;
@@ -580,10 +581,16 @@ void GameWidget::slot_onlineGameOver(QString msg)
     m_gameOverDialog->show();
 }
 
+void GameWidget::slot_onGameOverDisconnectReceived(QString roomId, QString msg)
+{
+    clearBoardForUI();
+    PageManager::instance()->switchToPage(2);
+}
+
 void GameWidget::slot_onReplayChoiceReceived(QString roomId, QString player, bool status, QString msg)
 {
+    clearBoardForUI();
     if(!m_isReplayNegotiating) return;
-    // QMessageBox::information(this, "提示", msg);
 }
 
 void GameWidget::slot_onReplayStartReceived(QString roomId, QString newColor, QString msg)
@@ -616,12 +623,26 @@ void GameWidget::slot_onReplayStartReceived(QString roomId, QString newColor, QS
     qDebug() << "[gameWidget] 再来一局初始化完成，新颜色：" << newColor;
 }
 
-void GameWidget::slot_onReplayCancelReceived(QString roomId, QString msg)
+void GameWidget::slot_onReplayCancelReceived(QString roomId, QString player, QString msg)
 {
     m_isReplayNegotiating = false;
-    QMessageBox::warning(this, "重开取消", msg);
 
-    // 清空棋盘，返回在线选择页
+    if(m_gameOverDialog){
+        m_gameOverDialog->close();
+        m_gameOverDialog->deleteLater();
+        m_gameOverDialog = nullptr;
+    }
+
+    // 清空棋盘，返回在线选择页  
     clearBoardForUI();
-    PageManager::instance()->switchToPage(2);
+    qDebug()<<OnlineSessionManager::getMyOnlineColor()<<"   "+player;
+    if(player == OnlineSessionManager::getMyOnlineColor())
+    {
+        PageManager::instance()->switchToPage(2);
+    }
+    else
+    {
+        PageManager::instance()->switchToPage(3);
+    }
+
 }

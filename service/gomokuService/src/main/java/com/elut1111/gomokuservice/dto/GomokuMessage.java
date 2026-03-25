@@ -34,6 +34,7 @@ public class GomokuMessage {
      * UNDO_STATUS     - 悔棋请求返回状态
      * REPLAY_START    - 双方同意再来一局
      * REPLAY_CANCEL   - 重开取消
+     * GAME_OVER_DISCONNECT - 对局或房间中玩家掉线
      */
     private String type;
     // 房间ID

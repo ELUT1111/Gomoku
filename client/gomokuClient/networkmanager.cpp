@@ -184,9 +184,15 @@ void NetworkManager::onTextMessageReceived(QString message) {
         emit sig_replayChoiceReceived(roomId, player, status, msg);
     }else if (type == "REPLAY_CANCEL") {
         QString roomId = obj["roomId"].toString();
+        QString player = obj["player"].toString();
         QString msg = obj["msg"].toString();
-        emit sig_replayCancelReceived(roomId, msg);
-    }else if (type == "ERROR") {
+        emit sig_replayCancelReceived(roomId, player, msg);
+    }else if(type == "GAME_OVER_DISCONNECT"){
+        QString roomId = obj["roomId"].toString();
+        QString msg = obj["msg"].toString();
+        emit sig_gameOverDisconnectReceived(roomId, msg);
+    }
+    else if (type == "ERROR") {
         QString msg = obj["msg"].toString();
         emit sig_errorReceived(msg);
     }
