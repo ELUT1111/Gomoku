@@ -79,6 +79,14 @@ void GameWidget::initUI()
     aiLoadingGif->setParent(view);
     aiThinkingLabel->setParent(view);
 
+    m_lastChessMarker = new QGraphicsRectItem();
+    m_lastChessMarker->setPen(QPen(QColor("#FFD700"), 3, Qt::SolidLine)); // 金色粗边框
+    m_lastChessMarker->setBrush(Qt::NoBrush); // 无填充
+    m_lastChessMarker->setZValue(2); // 置于棋子上层
+    m_lastChessMarker->hide(); // 初始隐藏
+    scene->addItem(m_lastChessMarker);
+    m_lastChessPos = QPoint(-1, -1);
+
     // 设置场景大小
     scene->setSceneRect(boardItem->boundingRect());
 
@@ -210,8 +218,6 @@ void GameWidget::drawChess(int x, int y, ChessType chessType)
     if(GameSession::instance()->gamemode != GamemodeType::ONLINE && boardData->getChess(x,y) != ChessType::EMPTY) return;
     qDebug()<<"[gameWidget] 绘子"<<x<<","<<y;
 
-    // TODO: 为新棋子添加ui标记
-
     // 加载棋子图片
     QPixmap chess_pix = (chessType == ChessType::BLACK) ? QPixmap(PATH_blackChess) : QPixmap(PATH_whiteChess);
     QGraphicsPixmapItem *chess_item = new QGraphicsPixmapItem(chess_pix);
@@ -239,40 +245,74 @@ void GameWidget::drawChess(int x, int y, ChessType chessType)
         );
 
     chessItems.append(chess_item);
+    chessPoints.append(QPoint(x, y)); // 记录落子坐标
+
+    // 新棋子标记
+    m_lastChessPos = QPoint(x, y);
+    updateLastChessMarker(chess_scene_x - chess_pix.width()/2,
+                          chess_scene_y - chess_pix.height()/2,
+                          chess_pix.width(),
+                          chess_pix.height());
 }
 
 void GameWidget::undoForUI()
 {
     /*悔棋*/
 
-    if(chessItems.isEmpty()) return;
+    if(chessItems.isEmpty())
+    {
+        m_lastChessMarker->hide();
+        m_lastChessPos = QPoint(-1, -1);
+        chessPoints.clear();
+        return;
+    }
     auto last = chessItems.takeLast();
+    chessPoints.takeLast();
     scene->removeItem(last);
     delete last;
     last = nullptr;
-
-    // 在线模式下只悔1棋
-    if(GameSession::instance()->gamemode == GamemodeType::ONLINE) return;
 
     if(isAIMode())
     {
         // 离线ai模式下连悔两棋
         if(chessItems.isEmpty()) return;
         auto last = chessItems.takeLast();
+        chessPoints.takeLast();
         scene->removeItem(last);
         delete last;
         last = nullptr;
+    }
+
+    // 悔棋后更新标记
+    if(!chessPoints.isEmpty())
+    {
+        QPoint lastPos = chessPoints.last();
+        QRectF board_rect = boardItem->boundingRect();
+        qreal board_w = board_rect.width();
+        qreal board_h = board_rect.height();
+        qreal grid_left = board_w * BORDER_RATIO;
+        qreal grid_top = board_h * BORDER_RATIO;
+        qreal grid_w = board_w * (1 - 2 * BORDER_RATIO);
+        qreal grid_h = board_h * (1 - 2 * BORDER_RATIO);
+        qreal grid_step_x = grid_w / (BOARD_SIZE - 1);
+        qreal grid_step_y = grid_h / (BOARD_SIZE - 1);
+        qreal cx = grid_left + lastPos.x() * grid_step_x;
+        qreal cy = grid_top + lastPos.y() * grid_step_y;
+        QPixmap pix = (boardData->getChess(lastPos.x(), lastPos.y())==ChessType::BLACK)
+                          ? QPixmap(PATH_blackChess) : QPixmap(PATH_whiteChess);
+        updateLastChessMarker(cx-pix.width()/2, cy-pix.height()/2, pix.width(), pix.height());
+        m_lastChessPos = lastPos;
+    }
+    else
+    {
+        m_lastChessMarker->hide();
+        m_lastChessPos = QPoint(-1, -1);
     }
 }
 
 void GameWidget::clearBoardForUI()
 {
 
-    // if(currentGamemode == GamemodeType::ONLINE)
-    // {
-    //     // QMessageBox::warning(this, "提示", "在线模式下不支持重置游戏！");
-    //     return;
-    // }
     currentColor = 1;
     nextColor = 2;
     //initBoard();
@@ -283,6 +323,12 @@ void GameWidget::clearBoardForUI()
     }
     chessItems.clear();
     chessPoints.clear();
+
+    if(m_lastChessMarker)
+    {
+        m_lastChessMarker->hide();
+        m_lastChessPos = QPoint(-1, -1);
+    }
 }
 
 bool GameWidget::checkPoint(int x, int y)
@@ -365,6 +411,18 @@ void GameWidget::createOverlayWidgets()
         NetworkManager::instance().sendUndoChoice(false);
         undoConfirmPanel->hide();
     });
+}
+
+void GameWidget::updateLastChessMarker(qreal chessX, qreal chessY, int chessW, int chessH)
+{
+    if (!m_lastChessMarker) return;
+    // 计算标记矩形
+    qreal markerX = chessX - CHESS_MARKER_PADDING;
+    qreal markerY = chessY - CHESS_MARKER_PADDING;
+    qreal markerW = chessW + 2 * CHESS_MARKER_PADDING;
+    qreal markerH = chessH + 2 * CHESS_MARKER_PADDING;
+    m_lastChessMarker->setRect(markerX, markerY, markerW, markerH);
+    m_lastChessMarker->show();
 }
 
 void GameWidget::showEvent(QShowEvent *event)
@@ -584,6 +642,7 @@ void GameWidget::slot_onlineGameOver(QString msg)
 void GameWidget::slot_onGameOverDisconnectReceived(QString roomId, QString msg)
 {
     clearBoardForUI();
+    QMessageBox::information(this,"游戏提示","对方已掉线");
     PageManager::instance()->switchToPage(2);
 }
 
@@ -644,5 +703,4 @@ void GameWidget::slot_onReplayCancelReceived(QString roomId, QString player, QSt
     {
         PageManager::instance()->switchToPage(3);
     }
-
 }

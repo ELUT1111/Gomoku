@@ -38,6 +38,7 @@ public:
     QPoint posToGrid(const QPoint &pos);
 
     void createOverlayWidgets(); // 初始化在线模式悔棋流程非阻塞 UI
+    void updateLastChessMarker(qreal chessX, qreal chessY, int chessW, int chessH);
 
     GamemodeType getCurrentGamemode() const;
     void setCurrentGamemode(GamemodeType newCurrentGamemode);
@@ -65,7 +66,6 @@ private:
 
     BoardDataPtr boardData;
 
-    // int board[15][15]; // 0空1黑2白
     int currentColor = 1;
     int nextColor = 2;
     QList<QGraphicsPixmapItem*> chessItems; // 仅ui棋子
@@ -80,6 +80,9 @@ private:
     QLabel *aiThinkingLabel; // “AI 正在思考”文本
     QLabel *aiLoadingGif;    // 加载动画
     QMovie *loadingMovie;    // GIF 动画资源
+    QGraphicsRectItem* m_lastChessMarker; // 四角高亮标记
+    QPoint m_lastChessPos;               // 最后落子坐标
+    const int CHESS_MARKER_PADDING = 3;  // 标记内边距
 signals:
     void signal_changeGamemode(GamemodeType gamemode);
     void signal_mouseClicked(int x,int y);

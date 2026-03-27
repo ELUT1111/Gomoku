@@ -138,12 +138,14 @@ void OnlineChoiceWidget::on_roomListButton_clicked()
 
 void OnlineChoiceWidget::on_btnReconnect_clicked()
 {
+    if(m_isReconnecting) return;
     // 获取输入的服务器地址，为空则使用默认地址
     QString serverUrl = ui->lineEdit_server->text().trimmed();
     if (serverUrl.isEmpty()) {
         serverUrl = WS_SERVER_URL;
         ui->lineEdit_server->setText(serverUrl);
     }
+    m_reconnectUrl = serverUrl;
 
     ui->btnReconnect->setEnabled(false);
     ui->btnReconnect->setText("🔄 正在连接...");
@@ -158,13 +160,16 @@ void OnlineChoiceWidget::on_btnReconnect_clicked()
             height: 36px;
         }
     )");
-
+    m_isReconnecting = true;
+    connect(&NetworkManager::instance(), &NetworkManager::errorOccurred,
+            this, &OnlineChoiceWidget::onReconnectAfterDisconnected,
+            Qt::SingleShotConnection);
+    connect(&NetworkManager::instance(), &NetworkManager::connected,
+            this, &OnlineChoiceWidget::onReconnectFinished,
+            Qt::SingleShotConnection);
     // 主动断开旧连接
     NetworkManager::instance().disconnectFromServer();
-
-    // 重新连接
-    NetworkManager::instance().connectToServer(serverUrl);
-    // QMessageBox::information(this, "提示", QString("正在重连服务器：\n%1").arg(serverUrl));
+    // NetworkManager::instance().connectToServer(serverUrl);
 }
 
 void OnlineChoiceWidget::initToast()
@@ -237,4 +242,17 @@ void OnlineChoiceWidget::onServerError(QString msg)
 
     // 显示失败悬浮提示
     showToast("❌ 连接失败：" + msg, false);
+}
+
+void OnlineChoiceWidget::onReconnectAfterDisconnected()
+{
+    if(!m_isReconnecting) return;
+
+    // 异步重连
+    NetworkManager::instance().connectToServer(m_reconnectUrl);
+}
+
+void OnlineChoiceWidget::onReconnectFinished()
+{
+    m_isReconnecting = false;
 }

@@ -33,10 +33,14 @@ private slots:
     // 服务器连接状态
     void onServerConnected();
     void onServerError(QString msg);
+    void onReconnectAfterDisconnected();  // 断开完成后执行重连
+    void onReconnectFinished();          // 连接完成恢复按钮
 
 signals:
     void sig_opponentChanged(bool status);
 private:
+    bool m_isReconnecting = false;    // 重连中标记
+    QString m_reconnectUrl;           // 重连地址
     // 初始化连接悬浮提示框
     void initToast();
     // 显示连接提示信息

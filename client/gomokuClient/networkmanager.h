@@ -7,6 +7,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QUuid>
+#include <QMutex>
+#include <QMutexLocker>
 
 class NetworkManager : public QObject {
     Q_OBJECT
@@ -66,6 +68,7 @@ private slots:
     void onSocketDisconnected();
 
 private:
+    QMutex m_networkMutex;
     QWebSocket m_socket;
     QString m_sessionId;
     QByteArray serializeMsg(const QString& type, const QString& roomId = "",

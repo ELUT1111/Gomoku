@@ -2,6 +2,7 @@
 
 #include <OnlineSessionManager.h>
 
+
 NetworkManager::NetworkManager(QObject *parent) : QObject(parent) {
     connect(&m_socket, &QWebSocket::connected, this, &NetworkManager::connected);
     connect(&m_socket, &QWebSocket::textMessageReceived, this, &NetworkManager::onTextMessageReceived);
@@ -12,6 +13,7 @@ NetworkManager::NetworkManager(QObject *parent) : QObject(parent) {
 }
 
 void NetworkManager::connectToServer(const QString& url) {
+    QMutexLocker locker(&m_networkMutex);
     if(isConnected()) {
         qDebug() << "[Network] 已连接到服务端，无需重复连接";
         return;
@@ -22,6 +24,7 @@ void NetworkManager::connectToServer(const QString& url) {
 
 void NetworkManager::disconnectFromServer()
 {
+    QMutexLocker locker(&m_networkMutex);
     if (m_socket.state() != QAbstractSocket::UnconnectedState) {
         m_socket.close();
         qDebug() << "[Network] 主动断开服务端连接";
