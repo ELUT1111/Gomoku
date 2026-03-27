@@ -3,6 +3,7 @@ package com.elut1111.gomokuservice.entity;
 import lombok.Data;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +14,9 @@ import java.util.UUID;
  */
 @Data
 public class Room implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
     /**
      * 房间ID（8位短ID）
      */

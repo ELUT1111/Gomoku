@@ -3,6 +3,7 @@ package com.elut1111.gomokuservice.manager;
 import com.elut1111.gomokuservice.dto.GomokuMessage;
 import com.elut1111.gomokuservice.entity.Player;
 import com.elut1111.gomokuservice.entity.Room;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -20,17 +21,17 @@ public class MatchManager {
     // 匹配等待队列
     private final ConcurrentLinkedQueue<WebSocketSession> matchQueue = new ConcurrentLinkedQueue<>();
     // 房间管理器
-    private final RoomManager roomManager = RoomManager.getInstance();
+    @Resource
+    private RoomManager roomManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 单例
-    private static MatchManager instance;
-    public static MatchManager getInstance() {
-        if (instance == null) {
-            instance = new MatchManager();
-        }
-        return instance;
-    }
+//    private static MatchManager instance;
+//    public static MatchManager getInstance() {
+//        if (instance == null) {
+//            instance = new MatchManager();
+//        }
+//        return instance;
+//    }
     /**
      * 加入匹配
      */

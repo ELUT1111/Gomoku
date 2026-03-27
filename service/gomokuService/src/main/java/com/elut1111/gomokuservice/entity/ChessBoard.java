@@ -2,6 +2,8 @@ package com.elut1111.gomokuservice.entity;
 
 import lombok.Data;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -9,7 +11,9 @@ import java.util.List;
  * 棋盘实体（15*15）
  */
 @Data
-public class ChessBoard {
+public class ChessBoard implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
     /**
      * 棋盘大小
      */
@@ -28,7 +32,9 @@ public class ChessBoard {
     private List<ChessMove> moveHistory;
 
     @Data
-    public static class ChessMove {
+    public static class ChessMove implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
         private int x;
         private int y;
         private String color;

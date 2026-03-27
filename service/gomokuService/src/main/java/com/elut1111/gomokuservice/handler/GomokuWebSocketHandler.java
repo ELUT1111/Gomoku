@@ -9,6 +9,7 @@ import com.elut1111.gomokuservice.manager.MatchManager;
 import com.elut1111.gomokuservice.manager.RoomManager;
 import com.elut1111.gomokuservice.util.FiveInLineCheckUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -27,13 +28,19 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class GomokuWebSocketHandler extends TextWebSocketHandler {
     // 在线会话缓存
-    private static final Map<String, WebSocketSession> ONLINE_SESSIONS = new ConcurrentHashMap<>();
+    public static final Map<String, WebSocketSession> ONLINE_SESSIONS = new ConcurrentHashMap<>();
     // JSON解析器
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final RoomManager roomManager = RoomManager.getInstance();
+    @Resource
+    private RoomManager roomManager;
 
-    private final MatchManager matchManager = MatchManager.getInstance();
+    @Resource
+    private MatchManager matchManager;
+
+    public static WebSocketSession getSessionBySessionId(String sessionId) {
+        return ONLINE_SESSIONS.get(sessionId);
+    }
     /**
      * 客户端连接成功
      */
@@ -743,4 +750,8 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
             sendErrorMsg(session, "重开请求处理失败");
         }
     }
+    public static WebSocketSession getOnlineSession(String sessionId) {
+        return ONLINE_SESSIONS.get(sessionId);
+    }
+
 }
