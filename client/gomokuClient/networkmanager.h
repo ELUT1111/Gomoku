@@ -38,6 +38,8 @@ public:
     QString getCurrentSessionId() { return m_sessionId; }
     bool isConnected() { return m_socket.state() == QAbstractSocket::ConnectedState; }
 
+    const QWebSocket* socket() const;
+
 signals:
     void connected();
     void gameStarted(int myColor);    // 1为黑，2为白

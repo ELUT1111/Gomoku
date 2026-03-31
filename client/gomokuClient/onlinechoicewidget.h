@@ -33,8 +33,6 @@ private slots:
     // 服务器连接状态
     void onServerConnected();
     void onServerError(QString msg);
-    void onReconnectAfterDisconnected();  // 断开完成后执行重连
-    void onReconnectFinished();          // 连接完成恢复按钮
 
 signals:
     void sig_opponentChanged(bool status);

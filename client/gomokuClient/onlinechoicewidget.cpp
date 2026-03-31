@@ -138,7 +138,6 @@ void OnlineChoiceWidget::on_roomListButton_clicked()
 
 void OnlineChoiceWidget::on_btnReconnect_clicked()
 {
-    if(m_isReconnecting) return;
     // 获取输入的服务器地址，为空则使用默认地址
     QString serverUrl = ui->lineEdit_server->text().trimmed();
     if (serverUrl.isEmpty()) {
@@ -160,16 +159,24 @@ void OnlineChoiceWidget::on_btnReconnect_clicked()
             height: 36px;
         }
     )");
-    m_isReconnecting = true;
-    connect(&NetworkManager::instance(), &NetworkManager::errorOccurred,
-            this, &OnlineChoiceWidget::onReconnectAfterDisconnected,
-            Qt::SingleShotConnection);
-    connect(&NetworkManager::instance(), &NetworkManager::connected,
-            this, &OnlineChoiceWidget::onReconnectFinished,
-            Qt::SingleShotConnection);
-    // 主动断开旧连接
-    NetworkManager::instance().disconnectFromServer();
-    // NetworkManager::instance().connectToServer(serverUrl);
+
+    if(NetworkManager::instance().isConnected())
+    {
+        connect(NetworkManager::instance().socket(), &QWebSocket::disconnected, this, [this](){
+            // 延迟100ms确保Socket完全关闭，避免状态冲突
+            QTimer::singleShot(100, this, [this](){
+                NetworkManager::instance().connectToServer(m_reconnectUrl);
+            });
+        }, Qt::SingleShotConnection); // 单次连接
+
+        // 主动断开旧连接
+        NetworkManager::instance().disconnectFromServer();
+    }
+    else
+    {
+        NetworkManager::instance().connectToServer(m_reconnectUrl);
+    }
+
 }
 
 void OnlineChoiceWidget::initToast()
@@ -242,17 +249,4 @@ void OnlineChoiceWidget::onServerError(QString msg)
 
     // 显示失败悬浮提示
     showToast("❌ 连接失败：" + msg, false);
-}
-
-void OnlineChoiceWidget::onReconnectAfterDisconnected()
-{
-    if(!m_isReconnecting) return;
-
-    // 异步重连
-    NetworkManager::instance().connectToServer(m_reconnectUrl);
-}
-
-void OnlineChoiceWidget::onReconnectFinished()
-{
-    m_isReconnecting = false;
 }

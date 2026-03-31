@@ -37,4 +37,5 @@ public class WebSocketConfig implements WebSocketConfigurer {
         container.setMaxTextMessageBufferSize(1024 * 1024);
         return container;
     }
+
 }

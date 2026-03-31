@@ -82,6 +82,11 @@ void NetworkManager::onSocketDisconnected() {
     emit errorOccurred("与服务端断开连接，请重新连接");
 }
 
+const QWebSocket* NetworkManager::socket() const
+{
+    return &m_socket;
+}
+
 void NetworkManager::sendCreateRoom() {
     if(!isConnected()) {
         emit errorOccurred("未连接到服务端，请先连接");

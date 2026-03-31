@@ -126,3 +126,6 @@ CMakeLists.txt.user*
 /client/gomokuClient/.rcc/
 /client/gomokuClient/.uic/
 /client/gomokuClient/build*/
+
+# 测试文件
+/service/gomokuService/src/main/java/test_ws.http

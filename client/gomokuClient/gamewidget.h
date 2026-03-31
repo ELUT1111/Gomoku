@@ -11,6 +11,7 @@
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
 #include <QLabel>
+#include <QPointer>
 #include <qprogressdialog.h>
 
 namespace Ui {
@@ -55,9 +56,9 @@ private:
     QGraphicsView* view;
     QGraphicsScene* scene;
     QGraphicsPixmapItem* boardItem;
-    QProgressDialog* undoWaitDialog;    // 悔棋等待遮罩
-    QWidget* undoConfirmPanel;   // 悔棋确认面板
-    QDialog* m_gameOverDialog = nullptr;
+    QPointer<QProgressDialog> undoWaitDialog;    // 悔棋等待遮罩
+    QPointer<QWidget> undoConfirmPanel;   // 悔棋确认面板
+    QPointer<QDialog> m_gameOverDialog = nullptr;
     bool m_isReplayNegotiating = false;
     GameSession* session;
 
@@ -77,9 +78,9 @@ private:
     const QString PATH_whiteChess = ":/pic/res/picture/white_chess.png";
     const QString PATH_board = ":/pic/res/picture/game_background.bmp";
 
-    QLabel *aiThinkingLabel; // “AI 正在思考”文本
-    QLabel *aiLoadingGif;    // 加载动画
-    QMovie *loadingMovie;    // GIF 动画资源
+    QPointer<QLabel> aiThinkingLabel; // “AI 正在思考”文本
+    QPointer<QLabel> aiLoadingGif;    // 加载动画
+    QPointer<QMovie> loadingMovie;    // GIF 动画资源
     QGraphicsRectItem* m_lastChessMarker; // 四角高亮标记
     QPoint m_lastChessPos;               // 最后落子坐标
     const int CHESS_MARKER_PADDING = 3;  // 标记内边距
