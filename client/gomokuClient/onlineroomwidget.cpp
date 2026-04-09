@@ -105,9 +105,11 @@ OnlineRoomWidget::OnlineRoomWidget(QWidget *parent)
     connect(&NetworkManager::instance(), &NetworkManager::sig_gameStartReceived, this, [this](QString msg){
         // QMessageBox::information(this, "游戏开始", msg);
         GameSession::instance()->slot_changeGamemode(GamemodeType::ONLINE);
+        OnlineSessionManager::instance()->setCurrentThinkingPlayer("BLACK");
         ChessType myChessType = (OnlineSessionManager::instance()->getMyOnlineColor() == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
         GameSession::instance()->setOnlinePlayerTag(myChessType, OnlineSessionManager::instance()->getMyOnlineColor());
         PageManager::instance()->switchToPage(5);
+        OnlineSessionManager::instance()->slot_setTimerStatus(true);
     });
 
 }

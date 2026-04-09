@@ -1,13 +1,52 @@
 #include "onlinesessionmanager.h"
+#include "qdebug.h"
 
 OnlineSessionManager* OnlineSessionManager::m_instance = nullptr;
 QString OnlineSessionManager::currentRoomId = "";
 QString OnlineSessionManager::myOnlineColor = "";
 
-
 OnlineSessionManager::OnlineSessionManager(QObject *parent)
     : QObject{parent}
-{}
+{
+    onlineTimer = new QTimer(this);
+    onlineTimer->setInterval(1000);
+
+    connect(onlineTimer,&QTimer::timeout,this,&OnlineSessionManager::slot_onTimerTimeout);
+}
+
+QString OnlineSessionManager::getCurrentThinkingPlayer() const
+{
+    return currentThinkingPlayer;
+}
+
+void OnlineSessionManager::setCurrentThinkingPlayer(const QString &newCurrentThinkingPlayer)
+{
+    currentThinkingPlayer = newCurrentThinkingPlayer;
+}
+
+void OnlineSessionManager::slot_onTimerTimeout()
+{
+    elapsedSeconds++;
+    emit signal_updateThinkingTime(elapsedSeconds);
+}
+
+void OnlineSessionManager::slot_setTimerStatus(bool status)
+{
+    if(onlineTimer)
+    {
+        elapsedSeconds = 0;
+        if(status)
+        {
+            onlineTimer->start();
+        }
+        else
+        {
+            onlineTimer->stop();
+        }
+    }
+
+}
+
 
 OnlineSessionManager *OnlineSessionManager::instance()
 {
@@ -31,4 +70,10 @@ QString OnlineSessionManager::getMyOnlineColor()
 void OnlineSessionManager::setMyOnlineColor(const QString &newMyOnlineColor)
 {
     myOnlineColor = newMyOnlineColor;
+}
+
+void OnlineSessionManager::switchCurrentThinkingPlayer()
+{
+    if(this->currentThinkingPlayer == "BLACK") setCurrentThinkingPlayer("WHITE");
+    else setCurrentThinkingPlayer("BLACK");
 }

@@ -366,8 +366,6 @@ public class GomokuWebSocketHandler extends TextWebSocketHandler {
                 if (opponent != null && opponent.isOpen()) {
                     sendMsgToSession(opponent, winMsg);
                 }
-//                // 销毁房间
-//                roomManager.destroyRoom(roomId);
                 // 进入重开选择
                 room.setStatus(Room.RoomStatus.END);
                 room.resetReplayStatus();

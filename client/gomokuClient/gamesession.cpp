@@ -1,6 +1,7 @@
 #include "gamesession.h"
 #include <AIPlayer.h>
 #include <HumanPlayer.h>
+#include <OnlineSessionManager.h>
 #include <qDebug>
 
 GameSession* GameSession::gameSession = nullptr;

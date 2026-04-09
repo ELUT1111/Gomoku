@@ -32,17 +32,26 @@ public:
     void drawChess(int x,int y,ChessType chessType);
     void undoForUI();
     void clearBoardForUI();
+    void setCurrentGamemode(GamemodeType newCurrentGamemode);
+
+    void updatePlayerInfoUI();    // 初始化/更新玩家基础信息
+    void updateTimeForUi(int s); // 更新思考时间,仅ui
+    void updateTimeForUi(QString currentPlayer,int s); // 在线模式用
+    void updateActiveHighlight(); // 更新当前落子方的边框高亮
+    void updateActiveHighlight(QString currentPlayer); // 在线模式用
+    void updateThinkingStaticUi(QString currentPlayer);
+    void createOverlayWidgets(); // 初始化在线模式悔棋流程非阻塞 UI
+    void updateLastChessMarker(qreal chessX, qreal chessY, int chessW, int chessH);
 
     bool checkPoint(int x,int y);
     bool isAIMode();
 
+    QString formatTime(int s);    // 格式化时间显示
+
     QPoint posToGrid(const QPoint &pos);
 
-    void createOverlayWidgets(); // 初始化在线模式悔棋流程非阻塞 UI
-    void updateLastChessMarker(qreal chessX, qreal chessY, int chessW, int chessH);
-
     GamemodeType getCurrentGamemode() const;
-    void setCurrentGamemode(GamemodeType newCurrentGamemode);
+
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -61,6 +70,9 @@ private:
     QPointer<QDialog> m_gameOverDialog = nullptr;
     bool m_isReplayNegotiating = false;
     GameSession* session;
+
+    QTimer *m_turnTimer = nullptr;          // 回合计时器
+    int m_elapsedSeconds = 0;         // 当前回合已用秒数
 
     GamemodeType currentGamemode;
     int currentStep = 0;
@@ -90,6 +102,7 @@ signals:
     void signal_resetBoard();
     void signal_undoRequest();
     void signal_yourTurn();
+    void signal_setOnlineTimerState(bool state);
 public slots:
     void slot_changeGamemode(GamemodeType gamemode);
     void slot_undo();
@@ -97,7 +110,9 @@ public slots:
     void slot_drawChess(int x,int y,ChessType chessType);
     void slot_drawChessForOnline(int x,int y,int color,bool status);
     void slot_switchTurn();
+    void slot_onTimerTimeout();
     void slot_playerWin(AbstractPlayer* player);
+    void slot_onUpdateThinkingTime(int s);
 
     void slot_onlineGameOver(QString msg);
     void slot_onGameOverDisconnectReceived(QString roomId,QString msg);

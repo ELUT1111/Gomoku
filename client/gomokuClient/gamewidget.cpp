@@ -1,6 +1,7 @@
 #include "AIPlayer.h"
 #include "PageManager.h"
 #include "gamewidget.h"
+#include "qtimer.h"
 #include "ui_gamewidget.h"
 
 #include <QVBoxLayout>
@@ -42,18 +43,15 @@ void GameWidget::initUI()
     this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding); // 随父容器扩展
     this->setContentsMargins(0, 0, 0, 0); // 移除自身边距
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0,0,0,0);
-    setLayout(layout);
-
     // 场景+视图
     scene = new QGraphicsScene(this);
-    view = new QGraphicsView(scene, this);
+    view = ui->graphicsView_board;
+    view->setScene(scene);
     view->setRenderHint(QPainter::SmoothPixmapTransform); // 平滑缩放
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setStyleSheet("background-color:green");
-    layout->addWidget(view);
+    // layout->addWidget(view);
 
     // 加载棋盘图片
     QPixmap boardPix(PATH_board);
@@ -91,6 +89,15 @@ void GameWidget::initUI()
     scene->setSceneRect(boardItem->boundingRect());
 
     createOverlayWidgets(); // 初始化在线模式悔棋流程ui
+
+    updateActiveHighlight("BLACK"); // 初始化思考状态ui
+
+    // 初始化计时器
+    m_turnTimer = new QTimer(this);
+    m_turnTimer->setInterval(1000); // 1秒触发一次
+    connect(m_turnTimer, &QTimer::timeout, this, &GameWidget::slot_onTimerTimeout);
+
+    m_elapsedSeconds = 0;
 }
 
 void GameWidget::initConnect()
@@ -121,7 +128,7 @@ void GameWidget::initConnect()
         {
             if(OnlineSessionManager::getMyOnlineColor() == player)
             {
-                // 创建无限滚动的等候弹窗
+                // 创建等候弹窗
                 undoWaitDialog = new QProgressDialog("正在等待对方回复...", "取消", 0, 0, this);
                 undoWaitDialog->setWindowTitle("等待悔棋中");
                 undoWaitDialog->setWindowModality(Qt::WindowModal);
@@ -167,6 +174,9 @@ void GameWidget::initConnect()
         if(status)
         {
             undoForUI();
+            OnlineSessionManager::instance()->switchCurrentThinkingPlayer();
+            emit signal_setOnlineTimerState(true);
+            updateThinkingStaticUi(OnlineSessionManager::instance()->getCurrentThinkingPlayer());
         }
     });
 
@@ -210,6 +220,11 @@ void GameWidget::initConnect()
             });
         }
     });
+
+    connect(this,&GameWidget::signal_setOnlineTimerState,OnlineSessionManager::instance(),
+            &OnlineSessionManager::slot_setTimerStatus);
+    connect(OnlineSessionManager::instance(),&OnlineSessionManager::signal_updateThinkingTime,
+            this,&GameWidget::slot_onUpdateThinkingTime);
 
 }
 
@@ -367,7 +382,7 @@ QPoint GameWidget::posToGrid(const QPoint &pos)
     relative_x = qBound(0.0, relative_x, grid_w);
     relative_y = qBound(0.0, relative_y, grid_h);
 
-    // 映射到15×15网格交点（0~14）
+    // 映射到网格交点
     int x = qRound(relative_x / grid_w * (BOARD_SIZE - 1));
     int y = qRound(relative_y / grid_h * (BOARD_SIZE - 1));
 
@@ -454,21 +469,26 @@ void GameWidget::mousePressEvent(QMouseEvent *event)
     if(undoWaitDialog != nullptr && undoWaitDialog->isVisible()) return;
     if(event->button() == Qt::LeftButton)
     {
-        QPoint grid = posToGrid(event->pos());
-        int x = grid.x();
-        int y = grid.y();
-        if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
+        QPoint viewPos = ui->graphicsView_board->mapFrom(this, event->pos());
+        if(ui->graphicsView_board->viewport()->rect().contains(viewPos))
         {
-            //ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
+            QPoint grid = posToGrid(viewPos);
+            int x = grid.x();
+            int y = grid.y();
 
-            NetworkManager::instance().sendChessMove(x,y,OnlineSessionManager::instance()->getMyOnlineColor());
+            if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
+            {
+                //ChessType myType = (g_myOnlineTag == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
 
-            return;
-        }
-        if( boardData->getChess(x, y) == ChessType::EMPTY) // 空位
-        {
-            qDebug()<<grid;
-            emit signal_mouseClicked(x,y);
+                NetworkManager::instance().sendChessMove(x,y,OnlineSessionManager::instance()->getMyOnlineColor());
+
+                return;
+            }
+            if( boardData->getChess(x, y) == ChessType::EMPTY) // 空位
+            {
+                qDebug()<<grid;
+                emit signal_mouseClicked(x,y);
+            }
         }
     }
 }
@@ -495,6 +515,25 @@ void GameWidget::updateViewScale()
     view->centerOn(boardItem);
 }
 
+QString GameWidget::formatTime(int s)
+{
+    if (s < 0) {
+        s = 0;
+    }
+
+    const int hours = s / 3600;
+    const int remainingSeconds = s % 3600;
+    const int minutes = remainingSeconds / 60;
+    const int seconds = remainingSeconds % 60;
+
+    if (hours > 0) {
+        return QString("%1:%2:%3").arg(hours).arg(minutes).arg(seconds);
+    }
+    else {
+        return QString("%1:%2").arg(minutes).arg(seconds);
+    }
+}
+
 GamemodeType GameWidget::getCurrentGamemode() const
 {
     return currentGamemode;
@@ -505,6 +544,80 @@ void GameWidget::setCurrentGamemode(GamemodeType newCurrentGamemode)
     qDebug()<<"[gameWidget] 设置模式:"<<int(newCurrentGamemode);
     currentGamemode = newCurrentGamemode;
     emit signal_changeGamemode(newCurrentGamemode);
+}
+
+void GameWidget::updatePlayerInfoUI()
+{
+
+}
+
+void GameWidget::updateTimeForUi(int s)
+{
+    QString timeStr = formatTime(s);
+
+    if (GameSession::instance()->currentPlayer->getMyChessType() == ChessType::BLACK) {
+        ui->lbl_time_black->setText(timeStr);
+    } else {
+        ui->lbl_time_white->setText(timeStr);
+    }
+}
+
+void GameWidget::updateTimeForUi(QString currentPlayer, int s)
+{
+    QString timeStr = formatTime(s);
+
+    if (currentPlayer == "BLACK") {
+        ui->lbl_time_black->setText(timeStr);
+    } else {
+        ui->lbl_time_white->setText(timeStr);
+    }
+}
+
+void GameWidget::updateActiveHighlight()
+{
+    QString activeStyle = "QFrame { border: 3px solid #2563EB; border-radius: 10px; background-color: rgba(74, 108, 247, 0.05); }";
+    QString inactiveStyle = "QFrame { border: 3px solid #EEEEEE; border-radius: 10px; background-color: transparent; }";
+
+    if (GameSession::instance()->currentPlayer->getMyChessType() == ChessType::BLACK) {
+        ui->frame_black->setStyleSheet(activeStyle);
+        ui->frame_white->setStyleSheet(inactiveStyle);
+    } else {
+        ui->frame_black->setStyleSheet(inactiveStyle);
+        ui->frame_white->setStyleSheet(activeStyle);
+    }
+}
+
+void GameWidget::updateActiveHighlight(QString currentPlayer)
+{
+    QString activeStyle = "QFrame { border: 3px solid #2563EB; border-radius: 10px; background-color: rgba(74, 108, 247, 0.05); }";
+    QString inactiveStyle = "QFrame { border: 3px solid #EEEEEE; border-radius: 10px; background-color: transparent; }";
+
+    if (currentPlayer == "BLACK") {
+        ui->frame_black->setStyleSheet(activeStyle);
+        ui->frame_white->setStyleSheet(inactiveStyle);
+    } else {
+        ui->frame_black->setStyleSheet(inactiveStyle);
+        ui->frame_white->setStyleSheet(activeStyle);
+    }
+}
+
+void GameWidget::updateThinkingStaticUi(QString currentPlayer)
+{
+    if(currentPlayer == "BLACK")
+    {
+        ui->lbl_time_black->setText("0:0");
+        ui->lbl_time_white->setText("");
+        ui->lbl_status_black->setText("思考中");
+        ui->lbl_status_white->setText("等待中");
+    }
+    else
+    {
+        ui->lbl_time_black->setText("");
+        ui->lbl_time_white->setText("0:0");
+        ui->lbl_status_black->setText("等待中");
+        ui->lbl_status_white->setText("思考中");
+    }
+    updateActiveHighlight(currentPlayer);
 }
 
 void GameWidget::slot_changeGamemode(GamemodeType gamemode)
@@ -534,12 +647,25 @@ void GameWidget::slot_drawChessForOnline(int x, int y, int color, bool status)
     if(status)
     {
         drawChess(x , y, (ChessType)color);
+        OnlineSessionManager::instance()->switchCurrentThinkingPlayer();
+        emit signal_setOnlineTimerState(true);
+        updateThinkingStaticUi(OnlineSessionManager::instance()->getCurrentThinkingPlayer());
     }
 }
 
 void GameWidget::slot_switchTurn()
 {
     if(currentGamemode == GamemodeType::ONLINE) return;
+
+    m_elapsedSeconds = 0;
+    m_turnTimer->start();
+
+    ui->lbl_time_black->setText(GameSession::instance()->currentPlayer->getMyChessType() == ChessType::BLACK ? "0:0" : "");
+    ui->lbl_time_white->setText(GameSession::instance()->currentPlayer->getMyChessType() == ChessType::WHITE ? "0:0" : "");
+    ui->lbl_status_black->setText(GameSession::instance()->currentPlayer->getMyChessType() == ChessType::BLACK ? "思考中" : "等待中");
+    ui->lbl_status_white->setText(GameSession::instance()->currentPlayer->getMyChessType() == ChessType::WHITE ? "思考中" : "等待中");
+
+    updateActiveHighlight();
 
     //qDebug()<<"[gameWidget] 交换回合";
     disconnect(this, &GameWidget::signal_mouseClicked, nullptr, nullptr);
@@ -564,18 +690,39 @@ void GameWidget::slot_switchTurn()
 
 }
 
+void GameWidget::slot_onTimerTimeout()
+{
+    m_elapsedSeconds++;
+    if(GameSession::instance()->gamemode != GamemodeType::ONLINE)
+    {
+    updateTimeForUi(m_elapsedSeconds);
+    }
+}
+
 void GameWidget::slot_playerWin(AbstractPlayer *player)
 {
-
+    m_turnTimer->stop(); // 停止计时
     QString winner = (player == GameSession::instance()->player1) ? "黑方":"白方";
     QMessageBox::information(this,"游戏结束",winner+"获胜!");
     slot_reset();
+}
+
+void GameWidget::slot_onUpdateThinkingTime(int s)
+{
+    if(GameSession::instance()->gamemode == GamemodeType::ONLINE)
+    {
+        updateTimeForUi(OnlineSessionManager::instance()->getCurrentThinkingPlayer(),s);
+    }
 }
 
 void GameWidget::slot_onlineGameOver(QString msg)
 {
     if(m_isReplayNegotiating) return;
     m_isReplayNegotiating = true;
+
+    OnlineSessionManager::instance()->setCurrentThinkingPlayer("BLACK");
+    emit signal_setOnlineTimerState(false);
+    updateActiveHighlight("BLACK");
 
     // 创建自定义游戏结束弹窗
     m_gameOverDialog = new QDialog(this);
@@ -642,6 +789,9 @@ void GameWidget::slot_onlineGameOver(QString msg)
 void GameWidget::slot_onGameOverDisconnectReceived(QString roomId, QString msg)
 {
     clearBoardForUI();
+    OnlineSessionManager::instance()->setCurrentThinkingPlayer("BLACK");
+    OnlineSessionManager::instance()->slot_setTimerStatus(false);
+    updateThinkingStaticUi("BLACK");
     QMessageBox::information(this,"游戏提示","对方已掉线");
     PageManager::instance()->switchToPage(2);
 }
@@ -665,6 +815,11 @@ void GameWidget::slot_onReplayStartReceived(QString roomId, QString newColor, QS
     ChessType oldChessType = (oldColor == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
     ChessType newChessType = (newColor == "BLACK") ? ChessType::BLACK : ChessType::WHITE;
     GameSession::instance()->updateOnlinePlayerChessType(oldChessType, newChessType);
+
+    //重置在线当前玩家标识
+    OnlineSessionManager::instance()->setCurrentThinkingPlayer("BLACK");
+    emit signal_setOnlineTimerState(true);
+    updateThinkingStaticUi("BLACK");
 
     // 重置游戏与UI
     clearBoardForUI();
@@ -691,6 +846,10 @@ void GameWidget::slot_onReplayCancelReceived(QString roomId, QString player, QSt
         m_gameOverDialog->deleteLater();
         m_gameOverDialog = nullptr;
     }
+
+    OnlineSessionManager::instance()->setCurrentThinkingPlayer("BLACK");
+    emit signal_setOnlineTimerState(false);
+    updateThinkingStaticUi("BLACK");
 
     // 清空棋盘，返回在线选择页  
     clearBoardForUI();

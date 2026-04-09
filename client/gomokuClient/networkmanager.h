@@ -42,7 +42,6 @@ public:
 
 signals:
     void connected();
-    void gameStarted(int myColor);    // 1为黑，2为白
 
     void sig_playerReadyReceived(bool currentState,QString msg);
     void sig_gameStartReceived(QString msg); // 游戏正式开始信号
