@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QPoint>
+#include <QMap>
 #include "SharedType.h"
 
 class AIThinkWorker : public QObject
@@ -28,15 +29,29 @@ private:
     QPoint nextPosForEasy();
     QPoint nextPosForNormal();
     QPoint nextPosForHard();
+    QPoint checkImmediateThreat();
     QPoint randomEmptyPos();
     QList<QPoint> generateCandidateMoves() const;
     int evaluateBoard() const;
     int minimax(int depth, int alpha, int beta, ChessType currentPlayer);
     QPoint minimaxDecision(int depth);
 
+    int m_localBoard[BOARD_SIZE][BOARD_SIZE];
     ChessType m_chessType;
     AIType m_difficulty;
     static constexpr int INF = 1000000;
+
+    // Zobrist 哈希相关
+    quint64 zobristTable[BOARD_SIZE][BOARD_SIZE][2];
+    quint64 currentHash;
+    struct HashEntry { int depth; int score; };
+    QMap<quint64, HashEntry> transpositionTable;
+
+    void initZobrist();
+    void updateHash(int r, int c, ChessType type);
+    int evaluateForPlayer(ChessType color) const;
+    void makeMove(int r, int c, ChessType type);
+    void unmakeMove(int r, int c, ChessType type);
 };
 
 #endif // AITHINKWORKER_H

@@ -16,7 +16,7 @@ MainWindow::MainWindow(QWidget *parent)
     initPage();
     connect(PageManager::instance(),&PageManager::signal_switchToPage,this,&MainWindow::slot_switchToPage);
 
-    connect(this,&MainWindow::signal_undo,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_undo);
+    connect(this,&MainWindow::signal_undo,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_undoOffline);
     connect(this,&MainWindow::signal_reset,qobject_cast<GameWidget*>(gameWidget),&GameWidget::slot_reset);
     connect(PageManager::instance(), &PageManager::signal_changeGamemode,
             this, &MainWindow::slot_updateGameButtonVisible);

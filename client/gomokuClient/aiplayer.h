@@ -32,9 +32,9 @@ public slots:
     void slot_myTurn() override;
     void onThinkFinished(QPoint pos); // 接收 worker 的思考结果
 signals:
-    void startThinking(); // 触发 AI 思考的信号（给 worker）
-    void thinkStarted();  // AI 开始思考（给 UI）
-    void thinkFinished(); // AI 思考完成（给 UI）
+    void startThinking(); // 触发 AI 思考的信号（to worker）
+    void thinkStarted();  // AI 开始思考（to UI）
+    void thinkFinished(); // AI 思考完成（to UI）
 };
 
 #endif // AIPLAYER_H

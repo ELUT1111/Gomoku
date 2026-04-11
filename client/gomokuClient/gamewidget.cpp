@@ -112,7 +112,7 @@ void GameWidget::initConnect()
     connect(GameSession::instance(),&GameSession::signal_playerWin,this,&GameWidget::slot_playerWin,Qt::UniqueConnection);
 
     connect(this,&GameWidget::signal_resetBoard,GameSession::instance(),&GameSession::slot_resetGame,Qt::UniqueConnection);
-    connect(this,&GameWidget::signal_undoRequest,GameSession::instance(),&GameSession::slot_handleUndo,Qt::UniqueConnection);
+    connect(this,&GameWidget::signal_undoRequestOffline,GameSession::instance(),&GameSession::slot_handleUndoOffline,Qt::UniqueConnection);
     connect(this,&GameWidget::signal_changeGamemode,GameSession::instance(),&GameSession::slot_changeGamemode,Qt::UniqueConnection);
 
     // 绑定在线游戏落子状态返回信号
@@ -625,9 +625,9 @@ void GameWidget::slot_changeGamemode(GamemodeType gamemode)
     setCurrentGamemode(gamemode);
 }
 
-void GameWidget::slot_undo()
+void GameWidget::slot_undoOffline()
 {
-    if(currentGamemode != GamemodeType::ONLINE)emit signal_undoRequest();
+    emit signal_undoRequestOffline();
     undoForUI();
 }
 

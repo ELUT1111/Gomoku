@@ -175,11 +175,9 @@ void GameSession::slot_resetGame()
     resetTurn();
 }
 
-void GameSession::slot_handleUndo()
+void GameSession::slot_handleUndoOffline()
 {
-    if(gamemode == GamemodeType::ONLINE) return;
-
-    qDebug()<<"[session] 处理悔棋";
+    qDebug()<<"[session] 处理离线悔棋";
     if(chessHistory.isEmpty()) return;
     ChessHistory last = chessHistory.takeLast();
     if(gamemode == GamemodeType::OFFLINE_FREE)
@@ -188,7 +186,7 @@ void GameSession::slot_handleUndo()
         std::swap(currentPlayer,lastPlayer);
         emit signal_switchTurn();
     }
-    else if(gamemode == GamemodeType::OFFLINE_AI_EASY)
+    else if(isAIMode())
     {
         if(chessHistory.isEmpty()) return;
         ChessHistory last2 = chessHistory.takeLast();

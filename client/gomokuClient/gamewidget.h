@@ -100,12 +100,12 @@ signals:
     void signal_changeGamemode(GamemodeType gamemode);
     void signal_mouseClicked(int x,int y);
     void signal_resetBoard();
-    void signal_undoRequest();
+    void signal_undoRequestOffline();
     void signal_yourTurn();
     void signal_setOnlineTimerState(bool state);
 public slots:
     void slot_changeGamemode(GamemodeType gamemode);
-    void slot_undo();
+    void slot_undoOffline();
     void slot_reset();
     void slot_drawChess(int x,int y,ChessType chessType);
     void slot_drawChessForOnline(int x,int y,int color,bool status);

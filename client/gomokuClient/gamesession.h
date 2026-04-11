@@ -76,7 +76,7 @@ public slots:
     void slot_changeGamemode(GamemodeType gamemode);
     void slot_placeChess(int x,int y, ChessType chessType);
     void slot_resetGame();
-    void slot_handleUndo();
+    void slot_handleUndoOffline();
 
     void slot_handleOpponentMove(int x, int y, int color);
     // 处理在线游戏结束
